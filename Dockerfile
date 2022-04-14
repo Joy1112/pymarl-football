@@ -20,7 +20,7 @@ RUN conda create -n $ENV_NAME python=3.8 && \
     pip install --upgrade pip setuptools wheel && \
     pip install psutil && pip install $USER_HOME/envs/football && pip install $USER_HOME/envs/smac && \
     rm -r $USER_HOME/envs && \
-    pip install sacred numpy scipy gym==0.10.8 matplotlib seaborn pyyaml==5.3.1 pygame pytest probscale imageio snakeviz tensorboard-logger && \
+    pip install sacred numpy scipy gym matplotlib seaborn pyyaml==5.3.1 pygame pytest probscale imageio snakeviz tensorboard-logger && \
     pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html && \
     echo -e "\nconda activate $ENV_NAME" >> $USER_HOME/.bashrc
 

@@ -1,1 +1,2 @@
 from .FootballEnv import GoogleFootballEnv
+from .academy_pass_and_shoot_with_keeper import AcademyPassAndShootWithKeeper

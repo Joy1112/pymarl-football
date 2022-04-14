@@ -26,9 +26,9 @@
 env: gfootball
 
 env_args:
-  map_name: "academy_counterattack_hard"
-  representation: "simple115"
-  num_agents: 4
+  map_name: "academy_pass_and_shoot_with_keeper"
+  representation: "simple115v2"
+  num_agents: 2
   time_limit: 150
 
 test_greedy: True
