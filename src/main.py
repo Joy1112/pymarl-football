@@ -14,7 +14,7 @@ import yaml
 from run import REGISTRY as run_REGISTRY
 
 SETTINGS['CAPTURE_MODE'] = "fd" # set to "no" if you want to see stdout/stderr in console
-logger = get_logger()
+logger = get_logger('INFO')
 
 ex = Experiment("pymarl")
 ex.logger = logger
@@ -48,15 +48,16 @@ def _get_config(params, arg_name, subfolder):
     if config_name is not None:
         with open(os.path.join(os.path.dirname(__file__), "config", subfolder, "{}.yaml".format(config_name)), "r") as f:
             try:
-                config_dict = yaml.load(f)
+                config_dict = yaml.load(f, Loader=yaml.FullLoader)
             except yaml.YAMLError as exc:
                 assert False, "{}.yaml error: {}".format(config_name, exc)
         return config_dict
 
 
 def recursive_dict_update(d, u):
+    from collections import Mapping
     for k, v in u.items():
-        if isinstance(v, collections.Mapping):
+        if isinstance(v, Mapping):
             d[k] = recursive_dict_update(d.get(k, {}), v)
         else:
             d[k] = v
@@ -87,7 +88,7 @@ if __name__ == '__main__':
     # Get the defaults from default.yaml
     with open(os.path.join(os.path.dirname(__file__), "config", "default.yaml"), "r") as f:
         try:
-            config_dict = yaml.load(f)
+            config_dict = yaml.load(f, Loader=yaml.FullLoader)
         except yaml.YAMLError as exc:
             assert False, "default.yaml error: {}".format(exc)
 
@@ -107,7 +108,7 @@ if __name__ == '__main__':
     file_obs_path = join(results_path, "sacred", map_name, algo_name)
     
     logger.info("Saving to FileStorageObserver in {}.".format(file_obs_path))
-    ex.observers.append(FileStorageObserver.create(file_obs_path))
+    ex.observers.append(FileStorageObserver(file_obs_path))
 
     ex.run_commandline(params)
 
