@@ -65,7 +65,10 @@ class NQLearner:
         mac_out = []
         self.mac.init_hidden(batch.batch_size)
         for t in range(batch.max_seq_length):
-            agent_outs = self.mac.forward(batch, t=t)
+            if self.args.mac == 'reg_mac':
+                agent_outs = self.mac.forward(batch, t, 0, train_mode=True)
+            else:
+                agent_outs = self.mac.forward(batch, t=t)
             mac_out.append(agent_outs)
         mac_out = th.stack(mac_out, dim=1)  # Concat over time
 
@@ -79,7 +82,10 @@ class NQLearner:
             target_mac_out = []
             self.target_mac.init_hidden(batch.batch_size)
             for t in range(batch.max_seq_length):
-                target_agent_outs = self.target_mac.forward(batch, t=t)
+                if self.args.mac == 'reg_mac':
+                    target_agent_outs = self.target_mac.forward(batch, t, 0, train_mode=True)
+                else:
+                    target_agent_outs = self.target_mac.forward(batch, t=t)
                 target_mac_out.append(target_agent_outs)
 
             # We don't need the first timesteps Q-Value estimate for calculating targets

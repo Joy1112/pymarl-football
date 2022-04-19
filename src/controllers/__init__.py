@@ -8,6 +8,7 @@ from .basic_central_controller import CentralBasicMAC
 from .lica_controller import LICAMAC
 from .dop_controller import DOPMAC
 from .url_controller import URLMAC
+from .reg_controller import RegMAC
 
 REGISTRY["basic_mac"] = BasicMAC
 REGISTRY["n_mac"] = NMAC
@@ -17,3 +18,4 @@ REGISTRY["basic_central_mac"] = CentralBasicMAC
 REGISTRY["lica_mac"] = LICAMAC
 REGISTRY["dop_mac"] = DOPMAC
 REGISTRY["url_mac"] = URLMAC
+REGISTRY["reg_mac"] = RegMAC
