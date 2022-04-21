@@ -5,6 +5,7 @@ num_modes: 10
 cache_size: 10000
 max_control_len: 50
 start_steps: 5000
+batch_apwd: True
 
 # use epsilon greedy action selector
 action_selector: "epsilon_greedy"

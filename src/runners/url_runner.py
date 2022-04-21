@@ -162,7 +162,7 @@ class URLRunner(EpisodeRunner):
     def calc_pseudo_rewards(self, active_agents, control_traj, control_traj_reward=None):
         try:
             target_data_batches = [list(self.caches_dict[active_agents][i].dump(self.args.max_control_len))[0] for i in range(self.num_modes)]
-            pseudo_rewards = assign_reward(np.array(control_traj), target_data_batches, traj_reward=control_traj_reward)
+            pseudo_rewards = assign_reward(np.array(control_traj), target_data_batches, traj_reward=control_traj_reward, use_batch_apwd=self.args.batch_apwd)
         except:
             return None
 
