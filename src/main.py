@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import json
 import collections
 from os.path import dirname, abspath, join
 from copy import deepcopy
@@ -54,6 +55,21 @@ def _get_config(params, arg_name, subfolder):
         return config_dict
 
 
+def _reload_config(config_path):
+    try:
+        f = open(os.path.join(os.path.dirname(os.path.dirname(__file__)), config_path, "config.json"), "r")
+    except:
+        f = open(os.path.join(config_path, "config.json"), "r")
+        
+    try:
+        config_dict = json.load(f)
+    except:
+        raise ValueError('Failed to load config from {}'.format(config_path))
+
+    f.close()
+
+    return config_dict
+
 def recursive_dict_update(d, u):
     from collections import Mapping
     for k, v in u.items():
@@ -93,11 +109,30 @@ if __name__ == '__main__':
             assert False, "default.yaml error: {}".format(exc)
 
     # Load algorithm and env base configs
+    exp_config = None
+    for _i, _v in enumerate(params):
+        if "exp" in _v:
+            checkpoint_path = _v.split("=")[1]
+            exp_config = _reload_config(checkpoint_path)
+            config_dict = recursive_dict_update(config_dict, exp_config)
+            config_dict["checkpoint_path"] = checkpoint_path
+            del params[_i]
+            break
+
     env_config = _get_config(params, "--env-config", "envs")
     alg_config = _get_config(params, "--config", "algs")
-    # config_dict = {**config_dict, **env_config, **alg_config}
-    config_dict = recursive_dict_update(config_dict, env_config)
-    config_dict = recursive_dict_update(config_dict, alg_config)
+    if env_config is not None:
+        config_dict = recursive_dict_update(config_dict, env_config)
+    if alg_config is not None:
+        config_dict = recursive_dict_update(config_dict, alg_config)
+
+    # TODO: remove in the future version
+    for _i, _v in enumerate(params):
+        if "vis_process" in _v:
+            config_dict["vis_process"] = True
+            break
+    if "vis_process" not in config_dict.keys():
+        config_dict["vis_process"] = False
 
     # now add all the config to sacred
     ex.add_config(config_dict)

@@ -17,7 +17,7 @@ class AcademyPassAndShootWithKeeper(MultiAgentEnv):
         dense_reward=False,
         write_full_episode_dumps=False,
         write_goal_dumps=False,
-        dump_freq=1000,
+        dump_freq=0,
         render=False,
         num_agents=2,
         time_limit=150,

@@ -6,6 +6,7 @@ cache_size: 10000
 max_control_len: 50
 start_steps: 5000
 batch_apwd: True
+vis_process: False
 
 # use epsilon greedy action selector
 action_selector: "epsilon_greedy"
@@ -60,4 +61,4 @@ sample_on_train: False
 
 save_model: True
 
-name: "wurl_qmix_reg_env=16_adam_td_lambda"
+name: "wurl_qmix_reg_football"

@@ -8,6 +8,8 @@ from types import SimpleNamespace as SN
 from utils.logging import Logger
 from utils.timehelper import time_left, time_str
 from os.path import dirname, abspath
+from tqdm import tqdm
+from pyvirtualdisplay import Display
 
 from learners import REGISTRY as le_REGISTRY
 from runners import REGISTRY as r_REGISTRY
@@ -111,7 +113,12 @@ def run_sequential(args, logger):
     preprocess = {
         "actions": ("actions_onehot", [OneHot(out_dim=args.n_actions)])
     }
+    if not args.vis_process:
+        return _train(args, logger, runner, env_info, scheme, groups, preprocess)
+    else:
+        return _visualize(args, logger, runner, env_info, scheme, groups, preprocess)
 
+def _train(args, logger, runner, env_info, scheme, groups, preprocess):
     buffers = [ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
                             preprocess=preprocess,
                             device="cpu" if args.buffer_cpu_only else args.device) for _ in range(args.num_modes)]
@@ -237,6 +244,60 @@ def run_sequential(args, logger):
     runner.close_env()
     logger.console_logger.info("Finished Training")
 
+def _visualize(args, logger, runner, env_info, scheme, groups, preprocess):
+    buffer = ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
+                           preprocess=preprocess,
+                           device="cpu" if args.buffer_cpu_only else args.device)
+    macs = [mac_REGISTRY[args.mac](buffer.scheme, groups, args) for _ in range(args.num_modes)]
+    for mac in macs:
+        mac.cuda()
+
+    # Give runner the scheme
+    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, macs=macs)
+
+    assert args.checkpoint_path != "", "The `checkpoint_path` must be valid."
+
+    timesteps = []
+    timestep_to_load = 0
+
+    if not os.path.isdir(args.checkpoint_path):
+        logger.console_logger.info("Checkpoint directiory {} doesn't exist".format(args.checkpoint_path))
+        return
+
+    # Go through all files in args.checkpoint_path
+    for name in os.listdir(args.checkpoint_path):
+        full_name = os.path.join(args.checkpoint_path, name)
+        # Check if they are dirs the names of which are numbers
+        if os.path.isdir(full_name) and name.isdigit():
+            timesteps.append(int(name))
+
+    if args.load_step == 0:
+        # choose the max timestep
+        timestep_to_load = max(timesteps)
+    else:
+        # choose the timestep closest to load_step
+        timestep_to_load = min(timesteps, key=lambda x: abs(x - args.load_step))
+
+    model_path = os.path.join(args.checkpoint_path, str(timestep_to_load))
+
+    logger.console_logger.info("Loading model from {}".format(model_path))
+    for mode_id in range(args.num_modes):
+        macs[mode_id].load_models(model_path, mode_id)
+    runner.t_env = timestep_to_load
+
+
+    logger.console_logger.info("Beginning visualization for {} modes.".format(args.num_modes))
+
+    disp = Display(backend="xvfb").start()
+    for mode_id in range(args.num_modes):
+        args.env_args["logdir"] = os.path.join(model_path, "replay", str(mode_id))
+        runner.create_env(args.env_args)
+        for i in tqdm(range(10)):
+            runner.run(test_mode=True, mode_id=mode_id)
+
+    runner.close_env()
+    disp.stop()
+    logger.console_logger.info("Finished Visualization.")
 
 def args_sanity_check(config, _log):
 
