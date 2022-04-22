@@ -109,6 +109,20 @@ def categorical_entropy(probs):
     assert probs.size(-1) > 1
     return Categorical(probs=probs).entropy()
 
+class BoltzmannQDistributionActionSelector():
+    def __init__(self, args):
+        self.args = args
+    
+    def select_action(self, agent_inputs, avail_actions, t_env, test_mode=False):
+        '''
+        agent_inputs: bs*n_agent*ac_dim
+        avail_actions: bs*n_agent*ac_dim, 1 for available, 0 for unabailable
+        '''
+        q = agent_inputs.masked_fill((1-avail_actions).bool(), -float('Inf'))
+        actions = Categorical(logits=q).sample().long()
+        return actions
+
+REGISTRY["boltzmann"] = BoltzmannQDistributionActionSelector
 
 class EpsilonGreedyActionSelector():
 

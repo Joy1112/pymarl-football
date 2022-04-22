@@ -65,7 +65,8 @@ def wsre_batch(A, B, device='cuda'):
     B: skill*bs_T*s_dim
     '''
     D, d = A.shape
-    skill, T, _ = np.array(B).shape
+    skill = len(B)
+    T, _ = B[0].shape
     M=5
     with th.no_grad():
         mean = th.zeros([skill,M,d], device=device)
