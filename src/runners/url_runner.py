@@ -1,11 +1,13 @@
 import numpy as np
+import torch
 from copy import deepcopy
 
 from envs import REGISTRY as env_REGISTRY
 from functools import partial
 from components.episode_buffer import EpisodeBatch
 from .episode_runner import EpisodeRunner
-from wurl.apwd import assign_reward
+# from wurl.apwd import assign_reward
+from wurl.gwd import assign_reward
 from wurl.buffer import Cache
 
 
@@ -46,8 +48,8 @@ class URLRunner(EpisodeRunner):
         control_traj = []
         control_traj_reward = []
         observations = self.env.get_obs()
-        url_feature = self.build_url_feature(observations)
-        active_agents = tuple(url_feature[-3:])
+        # url_feature, active_agents = self.build_url_feature(observations)
+        url_feature, active_agents = self.build_graph(observations)
         while not terminated:
 
             pre_transition_data = {
@@ -78,9 +80,10 @@ class URLRunner(EpisodeRunner):
 
             # assert the controlling agents are the same
             new_observations = self.env.get_obs()
-            new_url_feature = self.build_url_feature(new_observations)
+            # new_url_feature, new_active_agents = self.build_url_feature(observations)
+            new_url_feature, new_active_agents = self.build_graph(new_observations)
 
-            if tuple(new_url_feature[-3:]) == active_agents and len(control_traj) < self.args.max_control_len:
+            if new_active_agents == active_agents and len(control_traj) < self.args.max_control_len:
                 controller_updated = False
             else:
                 controller_updated = True
@@ -88,7 +91,7 @@ class URLRunner(EpisodeRunner):
             # when the control traj ended, calculate the pseudo rewards.
             if terminated or controller_updated:
                 if self.t_env >= self.args.start_steps:
-                    pseudo_rewards = self.calc_pseudo_rewards(active_agents, control_traj)
+                    pseudo_rewards = self.calc_pseudo_rewards(active_agents, control_traj, control_traj_reward)
                     if pseudo_rewards is not None:
                         self.pseudo = True
                         pseudo_rewards_data = {
@@ -108,7 +111,7 @@ class URLRunner(EpisodeRunner):
             self.t += 1
             observations = new_observations
             url_feature = new_url_feature
-            active_agents = tuple(url_feature[-3:])
+            active_agents = new_active_agents
 
         last_data = {
             "state": [self.env.get_state()],
@@ -123,29 +126,90 @@ class URLRunner(EpisodeRunner):
         cpu_actions = actions.to("cpu").numpy()
         self.batch.update({"actions": cpu_actions}, ts=self.t)
 
+        cur_stats = self.test_stats if test_mode else self.train_stats
+        cur_returns = self.test_returns if test_mode else self.train_returns
+        log_prefix = "test_" if test_mode else ""
+        cur_stats.update({k: cur_stats.get(k, 0) + env_info.get(k, 0) for k in set(cur_stats) | set(env_info)})
+        cur_stats["n_episodes"] = 1 + cur_stats.get("n_episodes", 0)
+        cur_stats["ep_length"] = self.t + cur_stats.get("ep_length", 0)
+
+        if not test_mode:
+            self.t_env += self.t
+
+        # cur_returns.append(episode_return)
+        cur_returns.append(episode_pseudo_return)
+
+        if test_mode and (len(self.test_returns) == self.args.test_nepisode):
+            self._log(cur_returns, cur_stats, log_prefix)
+        elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
+            self._log(cur_returns, cur_stats, log_prefix)
+            if hasattr(self.macs[self.mode_id].action_selector, "epsilon"):
+                self.logger.log_stat("epsilon", self.macs[self.mode_id].action_selector.epsilon, self.t_env)
+            self.log_train_stats_t = self.t_env
+
         return self.batch
 
     def build_url_feature(self, observations):
         assert self.env.n_agents == 2, "only support 2 agents now."
-        url_feature = []
+        url_feature_list = []
         for obs in observations:
-            url_feature.append(obs[0:6])        # [ego_positions, relative_positions_1, relative_positions_2]
-            url_feature.append(obs[12:16])      # [relative_opponent_positions_1, relative_opponent_positions_2]
-            url_feature.append(obs[20:22])      # [relative_ball_x, relative_ball_y]
+            url_feature_list.append(obs[0:6])        # [ego_positions, relative_positions_1, relative_positions_2]
+            url_feature_list.append(obs[12:16])      # [relative_opponent_positions_1, relative_opponent_positions_2]
+            url_feature_list.append(obs[20:22])      # [relative_ball_x, relative_ball_y]
 
         obs = observations[0]
-        url_feature.append(obs[22:23])             # [ball_z]
+        url_feature_list.append(obs[22:23])             # [ball_z]
 
-        url_feature.append(obs[6:12])           # [left_team_movements]
-        url_feature.append(obs[16:20])          # [right_team_movements]
-        url_feature.append(obs[23:])            # other infos
+        url_feature_list.append(obs[6:12])           # [left_team_movements]
+        url_feature_list.append(obs[16:20])          # [right_team_movements]
+        url_feature_list.append(obs[23:])            # other infos
         
-        return np.concatenate(url_feature, axis=0)
+        url_feature = np.concatenate(url_feature_list, axis=0)
+        active_agents = tuple(url_feature[-3:])
+        return url_feature, active_agents
+    
+    def build_graph(self, observations):
+        # assert self.env.n_agents == 3, "only support 3 agents now."
+
+        agents_pos_x, agents_pos_y = [], []
+        for obs in observations:
+            agents_pos_x.append(obs[0])
+            agents_pos_y.append(obs[1])
+        
+        obs = observations[0]
+        if self.args.opponent_graph:
+            agents_pos_x.append(obs[12])
+            agents_pos_y.append(obs[13])
+        
+        if self.args.ball_graph:
+            agents_pos_x.append(obs[20])
+            agents_pos_y.append(obs[21])
+
+        agents_pos_x = torch.as_tensor(agents_pos_x).reshape(-1, 1)
+        agents_pos_y = torch.as_tensor(agents_pos_y).reshape(-1, 1)
+
+        relative_pos_x = agents_pos_x - agents_pos_x.T
+        relative_pos_y = agents_pos_y - agents_pos_y.T
+
+        url_graph = torch.sqrt(relative_pos_x ** 2 + relative_pos_y ** 2)
+        active_agents = tuple(observations[0][-3:])
+
+        return url_graph, active_agents
 
     def calc_pseudo_rewards(self, active_agents, control_traj, control_traj_reward=None):
         try:
             target_data_batches = [list(self.caches_dict[active_agents][i].dump(self.args.max_control_len))[0] for i in range(self.num_modes)]
-            pseudo_rewards = assign_reward(np.array(control_traj), target_data_batches, traj_reward=control_traj_reward, use_batch_apwd=self.args.batch_apwd)
+            # pseudo_rewards = assign_reward(np.array(control_traj), target_data_batches, traj_reward=control_traj_reward, use_batch_apwd=self.args.batch_apwd)
+            pseudo_rewards = assign_reward(
+                control_traj,
+                target_data_batches,
+                self.args.ot_hyperparams,
+                pseudo_reward_scale=self.args.pseudo_reward_scale,
+                reward_scale=self.args.reward_scale,
+                norm_reward=self.args.norm_reward,
+                traj_reward=control_traj_reward,
+                device="cuda"
+            )
         except:
             return None
 
