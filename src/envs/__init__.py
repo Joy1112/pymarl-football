@@ -10,13 +10,15 @@ from .stag_hunt import StagHunt
 
 try:
     gfootball = True
-    from .gfootball import GoogleFootballEnv, AcademyPassAndShootWithKeeper
+    from .gfootball import GoogleFootballEnv, AcademyPassAndShootWithKeeper, Academy_3_vs_1_with_Keeper
 except:
     gfootball = False
 
 def env_fn(env, **kwargs) -> MultiAgentEnv:
     if kwargs.get('map_name') == "academy_pass_and_shoot_with_keeper":
         return AcademyPassAndShootWithKeeper(**kwargs)
+    elif kwargs.get('map_name') == "academy_3_vs_1_with_keeper":
+        return Academy_3_vs_1_with_Keeper(**kwargs)
     return env(**kwargs)
 
 REGISTRY = {}
