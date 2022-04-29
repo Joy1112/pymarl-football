@@ -169,21 +169,31 @@ class URLRunner(EpisodeRunner):
         return url_feature, active_agents
     
     def build_graph(self, observations):
-        # assert self.env.n_agents == 3, "only support 3 agents now."
+        if self.args.env == "gfootball":
+            # assert self.env.n_agents == 3, "only support 3 agents now."
+            agents_pos_x, agents_pos_y = [], []
+            for obs in observations:
+                agents_pos_x.append(obs[0])
+                agents_pos_y.append(obs[1])
+            
+            obs = observations[0]
+            if self.args.opponent_graph:
+                agents_pos_x.append(obs[12])
+                agents_pos_y.append(obs[13])
+            
+            if self.args.ball_graph:
+                agents_pos_x.append(obs[20])
+                agents_pos_y.append(obs[21])
 
-        agents_pos_x, agents_pos_y = [], []
-        for obs in observations:
-            agents_pos_x.append(obs[0])
-            agents_pos_y.append(obs[1])
-        
-        obs = observations[0]
-        if self.args.opponent_graph:
-            agents_pos_x.append(obs[12])
-            agents_pos_y.append(obs[13])
-        
-        if self.args.ball_graph:
-            agents_pos_x.append(obs[20])
-            agents_pos_y.append(obs[21])
+            active_agents = tuple(obs[-3:])
+        elif self.args.env == "mpe":
+            agents_pos_x, agents_pos_y = [], []
+            for obs in observations:
+                agents_pos_x.append(obs[2])
+                agents_pos_y.append(obs[3])
+            active_agents = 1
+        else:
+            raise NotImplementedError
 
         agents_pos_x = torch.as_tensor(agents_pos_x).reshape(-1, 1)
         agents_pos_y = torch.as_tensor(agents_pos_y).reshape(-1, 1)
@@ -192,7 +202,6 @@ class URLRunner(EpisodeRunner):
         relative_pos_y = agents_pos_y - agents_pos_y.T
 
         url_graph = torch.sqrt(relative_pos_x ** 2 + relative_pos_y ** 2)
-        active_agents = tuple(observations[0][-3:])
 
         return url_graph, active_agents
 
