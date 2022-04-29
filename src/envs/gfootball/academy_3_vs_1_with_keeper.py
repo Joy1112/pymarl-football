@@ -4,7 +4,6 @@ from gfootball.env import observation_preprocessing
 import gym
 import numpy as np
 
-
 class Academy_3_vs_1_with_Keeper(MultiAgentEnv):
 
     def __init__(
@@ -27,8 +26,29 @@ class Academy_3_vs_1_with_Keeper(MultiAgentEnv):
         write_video=True,
         number_of_right_players_agent_controls=0,
         seed=0,
-        random_init_pos=False
+        no_reward=False,
+        map_style = 0
     ):
+        self.map_style = map_style
+
+        if self.map_style == 0: #original map, half-court init fixed.
+            scenario_cfg = None
+        elif self.map_style == 1: #half-court init random
+            scenario_cfg = {'random_init':True, 'random_scale':0.05}
+        elif self.map_style == 2: #half-court init large random
+            scenario_cfg = {'random_init':True, 'random_scale':0.2}
+        elif self.map_style == 3: #half-court init random, possesion change not end
+            scenario_cfg = {'random_init':True, 'random_scale':0.05, 'pc_ok':True}
+        elif self.map_style == 4: #full-court init fixed
+            scenario_cfg = {'full_court':True}
+        elif self.map_style == 5: #full-court init random
+            scenario_cfg = {'full_court':True, 'random_init': True, 'random_scale':0.05}
+        elif self.map_style == 6: #full-court init random, possesion change not end
+            scenario_cfg = {'full_court':True, 'random_init': True, 'random_scale':0.05, 'pc_ok':True}
+        elif self.map_style == 7: #original map, reward scale 0.1
+            scenario_cfg = None
+        # elif self.map_style == 6: #full-court init at right
+
         self.dense_reward = dense_reward
         self.write_full_episode_dumps = write_full_episode_dumps
         self.write_goal_dumps = write_goal_dumps
@@ -37,7 +57,7 @@ class Academy_3_vs_1_with_Keeper(MultiAgentEnv):
         self.n_agents = n_agents
         self.episode_limit = time_limit
         self.time_step = time_step
-        self.obs_dim = obs_dim
+        # self.obs_dim = obs_dim
         self.env_name = map_name
         self.ball_owner = env_ball_owner
         self.stacked = stacked
@@ -47,7 +67,8 @@ class Academy_3_vs_1_with_Keeper(MultiAgentEnv):
         self.write_video = write_video
         self.number_of_right_players_agent_controls = number_of_right_players_agent_controls
         self.seed = seed
-        self.random_init = random_init_pos
+        self.no_reward = no_reward
+        self.obs_dim = obs_dim
         self.env = football_env.create_environment(
             write_full_episode_dumps = self.write_full_episode_dumps,
             write_goal_dumps = self.write_goal_dumps,
@@ -62,8 +83,8 @@ class Academy_3_vs_1_with_Keeper(MultiAgentEnv):
             number_of_left_players_agent_controls=self.n_agents,
             number_of_right_players_agent_controls=self.number_of_right_players_agent_controls,
             channel_dimensions=(observation_preprocessing.SMM_WIDTH, observation_preprocessing.SMM_HEIGHT),
-            # random_init=self.random_init
-        )
+            scenario_cfg=scenario_cfg,
+            other_config_options={})
         self.env.seed(self.seed)
 
         obs_space_low = self.env.observation_space.low[0][:self.obs_dim]
@@ -196,7 +217,7 @@ class Academy_3_vs_1_with_Keeper(MultiAgentEnv):
         ball_loc = cur_obs['ball']
         ours_loc = cur_obs['left_team'][-self.n_agents:]
 
-        if ball_loc[0] < 0 or any(ours_loc[:, 0] < 0):
+        if self.map_style in [0,1,2,3,7] and ball_loc[0] < 0 or any(ours_loc[:, 0] < 0):
             return True
 
         return False
@@ -213,13 +234,16 @@ class Academy_3_vs_1_with_Keeper(MultiAgentEnv):
 
         if self.check_if_done():
             done = True
-
+        if self.no_reward:
+            return 0, done, infos
         if sum(rewards) <= 0:
             # return obs, self.get_global_state(), -int(done), done, infos
             return -int(done), done, infos
-
         # return obs, self.get_global_state(), 100, done, infos
-        return 100, done, infos
+        win_r = 100
+        if self.map_style == 7:
+            win_r *= 0.1
+        return win_r, done, infos
 
     def get_obs(self):
         """Returns all agent observations in a list."""
