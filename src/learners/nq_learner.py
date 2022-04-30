@@ -194,7 +194,7 @@ class NQLearner:
         if mode_id is not None:
             self.mac.load_models(path, mode_id)
             self.target_mac.load_models(path, mode_id)
-            if self.mixer is not None:
+            if self.mixer is not None and self.args.load_mixer:
                 self.mixer.load_state_dict(th.load("{}/mixer_{}.th".format(path, mode_id), map_location=lambda storage, loc: storage))
             if self.args.load_optim:
                 self.optimiser.load_state_dict(th.load("{}/opt_{}.th".format(path, mode_id), map_location=lambda storage, loc: storage))
@@ -203,7 +203,7 @@ class NQLearner:
             # Not quite right but I don't want to save target networks
             self.target_mac.load_models(path)
 
-            if self.mixer is not None:
+            if self.mixer is not None and self.args.load_mixer:
                 self.mixer.load_state_dict(th.load("{}/mixer.th".format(path), map_location=lambda storage, loc: storage))
             if self.args.load_optim:
                 self.optimiser.load_state_dict(th.load("{}/opt.th".format(path), map_location=lambda storage, loc: storage))
