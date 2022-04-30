@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import time
 from copy import deepcopy
 
 from envs import REGISTRY as env_REGISTRY
@@ -65,7 +66,7 @@ class URLRunner(EpisodeRunner):
             actions = self.macs[self.mode_id].select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
             # Fix memory leak
             cpu_actions = actions.to("cpu").numpy()
-            
+
             reward, terminated, env_info = self.env.step(actions[0])
             episode_return += reward
 
@@ -82,7 +83,6 @@ class URLRunner(EpisodeRunner):
             new_observations = self.env.get_obs()
             # new_url_feature, new_active_agents = self.build_url_feature(observations)
             new_url_feature, new_active_agents = self.build_graph(new_observations)
-
             if new_active_agents == active_agents and len(control_traj) < self.args.max_control_len:
                 controller_updated = False
             else:
@@ -91,6 +91,7 @@ class URLRunner(EpisodeRunner):
             # when the control traj ended, calculate the pseudo rewards.
             if terminated or controller_updated:
                 if self.t_env >= self.args.start_steps:
+
                     pseudo_rewards = self.calc_pseudo_rewards(active_agents, control_traj, control_traj_reward)
                     if pseudo_rewards is not None:
                         self.pseudo = True
@@ -146,7 +147,6 @@ class URLRunner(EpisodeRunner):
             if hasattr(self.macs[self.mode_id].action_selector, "epsilon"):
                 self.logger.log_stat("epsilon", self.macs[self.mode_id].action_selector.epsilon, self.t_env)
             self.log_train_stats_t = self.t_env
-
         return self.batch
 
     def build_url_feature(self, observations):
