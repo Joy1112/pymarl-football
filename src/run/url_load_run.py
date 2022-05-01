@@ -171,7 +171,7 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
         logger.console_logger.info("Loading model from {}".format(model_path))
         for mode_id in range(args.num_modes):
             learners[mode_id].load_models(model_path, mode_id)
-        runner.t_env = timestep_to_load
+        # runner.t_env = timestep_to_load
 
         if args.evaluate or args.save_replay:
             evaluate_sequential(args, runner)
@@ -207,8 +207,7 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
 
         with th.no_grad():
             episode_batch = runner.run(test_mode=False, mode_id=cur_mode_id)
-            if runner.pseudo:
-                buffers[cur_mode_id].insert_episode_batch(episode_batch)
+            buffers[cur_mode_id].insert_episode_batch(episode_batch)
 
         if buffers[cur_mode_id].can_sample(args.batch_size):
             next_episode = episode + args.batch_size_run

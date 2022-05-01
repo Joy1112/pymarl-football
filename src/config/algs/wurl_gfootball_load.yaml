@@ -38,7 +38,7 @@ load_optim: True
 load_mixer: True
 best_mode: -1
 
-t_max: 10050000
+t_max: 4050000
 
 # update the target network every {} episodes
 target_update_interval: 200
