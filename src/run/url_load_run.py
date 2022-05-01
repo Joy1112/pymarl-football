@@ -195,13 +195,16 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
     logger.console_logger.info("Beginning training for {} timesteps".format(args.t_max))
 
     while runner.t_env <= args.t_max:
-        if runner.t_env >= args.judge_t and cur_mode_id == 0: #choose the best model to train
-            runner.model_choosed = True
-            cur_mode_id = np.argmax(runner.cur_reward)
-            logger.console_logger.info(\
-                "--------------------------------\n\n\nUsing skill {}!\n\n\n--------------------------------".format(cur_mode_id))
-        else:
-            cur_mode_id = (cur_mode_id + 1) % args.num_modes
+        if not runner.model_choosed:
+            if runner.t_env >= args.judge_t and cur_mode_id == 0: #choose the best model to train
+                runner.model_choosed = True
+                print('Test rewards for all skills:',{i:runner.cur_reward[i] for i in range(runner.num_modes)})
+                cur_mode_id = np.argmax(runner.cur_reward)
+
+                logger.console_logger.info(\
+                    "--------------------------------\n\n\nUsing skill {}!\n\n\n--------------------------------".format(cur_mode_id))
+            else:
+                cur_mode_id = (cur_mode_id + 1) % args.num_modes
 
         # Run for a whole episode at a time
 
@@ -253,8 +256,11 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
 
             # learner should handle saving/loading -- delegate actor save/load to mac,
             # use appropriate filenames to do critics, optimizer states
-            for mode_id in range(args.num_modes):
-                learners[mode_id].save_models(save_path, mode_id)
+            if not runner.model_choosed:
+                for mode_id in range(args.num_modes):
+                    learners[mode_id].save_models(save_path, mode_id)
+            else:
+                learners[cur_mode_id].save_models(save_path, mode_id)
 
         episode += args.batch_size_run
 
