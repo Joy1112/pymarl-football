@@ -103,10 +103,10 @@ def sinkhorn_knopp_iteration(cost, trans0=None, p_s=None, p_t=None,
     indicater_mat = relative_error > error_bound
     iter_i = 0
     while torch.sum(indicater_mat) >= 1. and iter_i < max_iter:
-        b = torch.div(p_t, torch.matmul(kernel.permute(0, 1, 2, 4, 3), a))
-        a_new = torch.div(p_s, torch.matmul(kernel, b))
+        b = torch.div(p_t, torch.matmul(kernel.permute(0, 1, 2, 4, 3), a) + 1e-10)
+        a_new = torch.div(p_s, torch.matmul(kernel, b) + 1e-10)
 
-        relative_error = torch.div(torch.sum(torch.abs(a_new - a), dim=(-2, -1)), torch.sum(torch.abs(a), dim=(-2, -1)))
+        relative_error = torch.div(torch.sum(torch.abs(a_new - a), dim=(-2, -1)), torch.sum(torch.abs(a), dim=(-2, -1)) + 1e-10)
         indicater_mat = relative_error > error_bound
         a = a_new
         iter_i += 1
@@ -153,13 +153,16 @@ def gromov_wasserstein_discrepancy(cost_s, cost_t, ot_hyperparams, trans0=None, 
             error_bound=ot_hyperparams["sk_bound"],
             max_iter=ot_hyperparams["inner_iteration"]
         )
-        relative_error = torch.div(torch.sum(torch.abs(trans - trans0), dim=(-2, -1)), torch.sum(torch.abs(trans0), dim=(-2, -1)))
+        relative_error = torch.div(torch.sum(torch.abs(trans - trans0), dim=(-2, -1)), torch.sum(torch.abs(trans0), dim=(-2, -1)) + 1e-10)
         indicater_mat = relative_error > ot_hyperparams["iter_bound"]
         trans0 = trans
         iter_t += 1
     
     cost = node_cost(cost_s, cost_t, trans, p_s, p_t, ot_hyperparams["loss_type"])
     d_gw = torch.sum(torch.matmul(cost, trans), dim=(-2, -1))
+
+    if torch.isnan(d_gw).any():
+        print(1)
 
     return trans, d_gw
 
