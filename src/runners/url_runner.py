@@ -17,15 +17,19 @@ class URLRunner(EpisodeRunner):
         super(URLRunner, self).__init__(args, logger)
         self.num_modes = args.num_modes
 
-        self.caches_empty = [Cache(args.cache_size) for _ in range(self.num_modes)]
-        self.caches_dict = {}
+        if self.args.url_algo == "diayn":
+            self.cache = Cache(args.cache_size)
+        else:
+            self.caches_empty = [Cache(args.cache_size) for _ in range(self.num_modes)]
+            self.caches_dict = {}
 
         self.url_assigner_fn = url_assigner_REGISTRY[self.args.url_algo]
     
-    def setup(self, scheme, groups, preprocess, macs):
+    def setup(self, scheme, groups, preprocess, macs, disc_trainer=None):
         self.new_batch = partial(EpisodeBatch, scheme, groups, self.batch_size, self.episode_limit + 1,
                                  preprocess=preprocess, device=self.args.device)
         self.macs = macs
+        self.disc_trainer = disc_trainer
     
     def create_env(self, env_args):
         del self.env
@@ -99,7 +103,6 @@ class URLRunner(EpisodeRunner):
             # when the control traj ended, calculate the pseudo rewards.
             if terminated or controller_updated:
                 if self.t_env >= self.args.start_steps:
-
                     pseudo_rewards = self.calc_pseudo_rewards(active_agents, control_traj, control_traj_reward)
                     if pseudo_rewards is not None:
                         self.pseudo = True
@@ -111,9 +114,12 @@ class URLRunner(EpisodeRunner):
                 control_traj = []
             
             # insert the url_feature into the cache.
-            if active_agents not in self.caches_dict.keys():
-                self.caches_dict[active_agents] = deepcopy(self.caches_empty)
-            self.caches_dict[active_agents][self.mode_id].push((url_feature, ))
+            if self.args.url_algo == "diayn":
+                self.cache.push((np.array([self.mode_id]), url_feature))
+            else:
+                if active_agents not in self.caches_dict.keys():
+                    self.caches_dict[active_agents] = deepcopy(self.caches_empty)
+                self.caches_dict[active_agents][self.mode_id].push((url_feature, ))
 
             self.batch.update(post_transition_data, ts=self.t)
 
@@ -228,11 +234,16 @@ class URLRunner(EpisodeRunner):
 
     def calc_pseudo_rewards(self, active_agents, control_traj, control_traj_reward=None):
         try:
-            target_data_batches = [list(self.caches_dict[active_agents][i].dump(self.args.max_control_len))[0] for i in range(self.num_modes)]
+            target_data_batches = None
+            if self.args.url_algo != "diayn":
+                target_data_batches = [list(self.caches_dict[active_agents][i].dump(self.args.max_control_len))[0] for i in range(self.num_modes)]
             pseudo_rewards = self.url_assigner_fn(
                 traj_data=control_traj,
                 target_data_batches=target_data_batches,
                 ot_hyperparams=self.args.ot_hyperparams,
+                mode_id=self.mode_id,
+                disc_trainer=self.disc_trainer,
+                num_modes=self.args.num_modes,
                 pseudo_reward_scale=self.args.pseudo_reward_scale,
                 reward_scale=self.args.reward_scale,
                 norm_reward=self.args.norm_reward,

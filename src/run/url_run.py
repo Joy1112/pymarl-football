@@ -19,6 +19,9 @@ from components.transforms import OneHot
 
 from smac.env import StarCraft2Env
 
+from url_algo.disc import DiscTrainer
+
+
 def get_agent_own_state_size(env_args):
     sc_env = StarCraft2Env(**env_args)
     # qatten parameter setting (only use in qatten)
@@ -119,6 +122,12 @@ def run_sequential(args, logger):
         return _visualize(args, logger, runner, env_info, scheme, groups, preprocess)
 
 def _train(args, logger, runner, env_info, scheme, groups, preprocess):
+    if args.url_algo == "diayn":
+        single_obs_shape = 2 if not args.url_velocity else 4
+        disc_trainer = DiscTrainer(single_obs_shape * args.n_agents, args)
+    else:
+        disc_trainer = None
+
     buffers = [ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
                             preprocess=preprocess,
                             device="cpu" if args.buffer_cpu_only else args.device) for _ in range(args.num_modes)]
@@ -126,7 +135,7 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
     macs = [mac_REGISTRY[args.mac](buffers[0].scheme, groups, args) for _ in range(args.num_modes)]
 
     # Give runner the scheme
-    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, macs=macs)
+    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, macs=macs, disc_trainer=disc_trainer)
 
     # Learner
     learners = [le_REGISTRY[args.learner](macs[i], buffers[0].scheme, logger, args) for i in range(args.num_modes)]
@@ -191,6 +200,13 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
             episode_batch = runner.run(test_mode=False, mode_id=cur_mode_id)
             if runner.pseudo:
                 buffers[cur_mode_id].insert_episode_batch(episode_batch)
+
+        # train discriminator
+        if args.url_algo == "diayn":
+            if runner.t_env >= args.start_steps:
+                label_batch, state_batch = runner.cache.sample(batch_size=args.disc_batch)
+                disc_loss = disc_trainer.update_parameters((label_batch, state_batch))
+                logger.log_stat("disc_loss", disc_loss, runner.t_env)
 
         if buffers[cur_mode_id].can_sample(args.batch_size):
             next_episode = episode + args.batch_size_run
