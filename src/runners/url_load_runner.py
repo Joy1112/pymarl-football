@@ -8,8 +8,10 @@ from functools import partial
 from components.episode_buffer import EpisodeBatch
 from .episode_runner import EpisodeRunner
 # from wurl.apwd import assign_reward
-from wurl.gwd import assign_reward
-from wurl.buffer import Cache
+from url_algo import REGISTRY as url_assigner_REGISTRY
+from url_algo.buffer import Cache
+
+assign_reward = url_assigner_REGISTRY["gwd"]
 
 
 class URLLoadRunner(EpisodeRunner):

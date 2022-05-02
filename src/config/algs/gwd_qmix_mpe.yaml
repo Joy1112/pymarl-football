@@ -17,6 +17,8 @@ ot_hyperparams:
   outer_iteration: 100
   iter_bound: 0.001
   sk_bound: 0.001
+url_algo: "gwd"
+url_velocity: False
 
 # use epsilon greedy action selector
 action_selector: "epsilon_greedy"
