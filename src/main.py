@@ -134,6 +134,15 @@ if __name__ == '__main__':
     if "vis_process" not in config_dict.keys():
         config_dict["vis_process"] = False
 
+    try:
+        ma_algo_name = parse_command(params, "mixer", config_dict['mixer'])
+        url_algo_name = parse_command(params, "url_algo", config_dict['url_algo'])
+        map_name = parse_command(params, "env_args.map_name", config_dict['env_args']['map_name'])
+        n_agents = parse_command(params, "env_args.n_agents", config_dict['env_args']['n_agents'])
+        config_dict["name"] = url_algo_name + "_" + ma_algo_name + "_" + map_name + "_agents-" + str(n_agents)
+    except:
+        pass
+
     # now add all the config to sacred
     ex.add_config(config_dict)
 
@@ -141,7 +150,7 @@ if __name__ == '__main__':
     map_name = parse_command(params, "env_args.map_name", config_dict['env_args']['map_name'])
     algo_name = parse_command(params, "name", config_dict['name']) 
     file_obs_path = join(results_path, "sacred", map_name, algo_name)
-    
+
     logger.info("Saving to FileStorageObserver in {}.".format(file_obs_path))
     ex.observers.append(FileStorageObserver(file_obs_path))
 

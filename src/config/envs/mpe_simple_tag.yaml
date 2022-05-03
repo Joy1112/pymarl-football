@@ -27,7 +27,7 @@ env: mpe
 
 env_args:
   map_name: "simple_tag"
-  num_agents: 4
+  n_agents: 4
   time_limit: 50
 
 test_greedy: True
