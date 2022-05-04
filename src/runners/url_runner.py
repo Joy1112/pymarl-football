@@ -192,6 +192,13 @@ class URLRunner(EpisodeRunner):
                 agents_pos_x.append(obs[2])
                 agents_pos_y.append(obs[3])
             active_agents = 1
+        elif self.args.env == 'sc2':
+            if self.args.env_args['map_name'] == 'corridor':
+                agents_pos_x, agents_pos_y, health = [], [], []
+                
+                active_agents=1
+            else:
+                raise NotImplementedError
         else:
             raise NotImplementedError
 

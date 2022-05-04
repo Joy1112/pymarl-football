@@ -217,7 +217,7 @@ class Academy_3_vs_1_with_Keeper(MultiAgentEnv):
         ball_loc = cur_obs['ball']
         ours_loc = cur_obs['left_team'][-self.n_agents:]
 
-        if self.map_style in [0,1,2,3,7] and ball_loc[0] < 0 or any(ours_loc[:, 0] < 0):
+        if self.map_style in [0,1,2,3,7] and (ball_loc[0] < 0 or any(ours_loc[:, 0] < 0)):
             return True
 
         return False
