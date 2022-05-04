@@ -26,9 +26,10 @@
 env: gfootball
 
 env_args:
-  map_name: "academy_pass_and_shoot_with_keeper"
+  map_name: "academy_3_vs_1_with_keeper"
   representation: "simple115v2"
-  num_agents: 2
+  n_agents: 3
+  dump_freq: 0
   time_limit: 150
   write_video: True
   render: True

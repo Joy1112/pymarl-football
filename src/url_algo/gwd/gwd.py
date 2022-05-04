@@ -168,7 +168,7 @@ def gromov_wasserstein_discrepancy(cost_s, cost_t, ot_hyperparams, trans0=None, 
 
 
 def assign_reward(traj_data, target_data_batches, ot_hyperparams, pseudo_reward_scale=10.,
-                  reward_scale=0., norm_reward=False, traj_reward=None, device="cuda"):
+                  reward_scale=0., norm_reward=False, traj_reward=None, device="cuda", **kwargs):
     """
     traj_data: [graph(torch.Tensor)] with graph.shape = [N, N]
     target_data_batches: [[target_state], ...] for different skills.

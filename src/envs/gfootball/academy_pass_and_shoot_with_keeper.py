@@ -19,7 +19,7 @@ class AcademyPassAndShootWithKeeper(MultiAgentEnv):
         write_goal_dumps=False,
         dump_freq=0,
         render=False,
-        num_agents=2,
+        n_agents=2,
         time_limit=150,
         time_step=0,
         env_ball_owner=False,
@@ -37,7 +37,7 @@ class AcademyPassAndShootWithKeeper(MultiAgentEnv):
         self.write_goal_dumps = write_goal_dumps
         self.dump_freq = dump_freq
         self.render = render
-        self.n_agents = num_agents
+        self.n_agents = n_agents
         self.episode_limit = time_limit
         self.time_step = time_step
         self.ball_owner = env_ball_owner

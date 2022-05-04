@@ -7,9 +7,8 @@ from envs import REGISTRY as env_REGISTRY
 from functools import partial
 from components.episode_buffer import EpisodeBatch
 from .episode_runner import EpisodeRunner
-# from wurl.apwd import assign_reward
-from wurl.gwd import assign_reward
-from wurl.buffer import Cache
+from url_algo import REGISTRY as url_assigner_REGISTRY
+from url_algo.buffer import Cache
 
 
 class URLRunner(EpisodeRunner):
@@ -18,13 +17,19 @@ class URLRunner(EpisodeRunner):
         super(URLRunner, self).__init__(args, logger)
         self.num_modes = args.num_modes
 
-        self.caches_empty = [Cache(args.cache_size) for _ in range(self.num_modes)]
-        self.caches_dict = {}
+        if self.args.url_algo == "diayn":
+            self.cache = Cache(args.cache_size)
+        else:
+            self.caches_empty = [Cache(args.cache_size) for _ in range(self.num_modes)]
+            self.caches_dict = {}
+
+        self.url_assigner_fn = url_assigner_REGISTRY[self.args.url_algo]
     
-    def setup(self, scheme, groups, preprocess, macs):
+    def setup(self, scheme, groups, preprocess, macs, disc_trainer=None):
         self.new_batch = partial(EpisodeBatch, scheme, groups, self.batch_size, self.episode_limit + 1,
                                  preprocess=preprocess, device=self.args.device)
         self.macs = macs
+        self.disc_trainer = disc_trainer
     
     def create_env(self, env_args):
         del self.env
@@ -49,8 +54,12 @@ class URLRunner(EpisodeRunner):
         control_traj = []
         control_traj_reward = []
         observations = self.env.get_obs()
-        # url_feature, active_agents = self.build_url_feature(observations)
-        url_feature, active_agents = self.build_graph(observations)
+
+        if self.args.url_algo == "gwd":
+            url_feature, active_agents = self.build_graph(observations)
+        else:
+            url_feature, active_agents = self.build_url_feature(observations)
+
         while not terminated:
 
             pre_transition_data = {
@@ -81,8 +90,11 @@ class URLRunner(EpisodeRunner):
 
             # assert the controlling agents are the same
             new_observations = self.env.get_obs()
-            # new_url_feature, new_active_agents = self.build_url_feature(observations)
-            new_url_feature, new_active_agents = self.build_graph(new_observations)
+            if self.args.url_algo == "gwd":
+                new_url_feature, new_active_agents = self.build_graph(new_observations)
+            else:
+                new_url_feature, new_active_agents = self.build_url_feature(new_observations)
+                
             if new_active_agents == active_agents and len(control_traj) < self.args.max_control_len:
                 controller_updated = False
             else:
@@ -91,7 +103,6 @@ class URLRunner(EpisodeRunner):
             # when the control traj ended, calculate the pseudo rewards.
             if terminated or controller_updated:
                 if self.t_env >= self.args.start_steps:
-
                     pseudo_rewards = self.calc_pseudo_rewards(active_agents, control_traj, control_traj_reward)
                     if pseudo_rewards is not None:
                         self.pseudo = True
@@ -103,9 +114,12 @@ class URLRunner(EpisodeRunner):
                 control_traj = []
             
             # insert the url_feature into the cache.
-            if active_agents not in self.caches_dict.keys():
-                self.caches_dict[active_agents] = deepcopy(self.caches_empty)
-            self.caches_dict[active_agents][self.mode_id].push((url_feature, ))
+            if self.args.url_algo == "diayn":
+                self.cache.push((np.array([self.mode_id]), url_feature))
+            else:
+                if active_agents not in self.caches_dict.keys():
+                    self.caches_dict[active_agents] = deepcopy(self.caches_empty)
+                self.caches_dict[active_agents][self.mode_id].push((url_feature, ))
 
             self.batch.update(post_transition_data, ts=self.t)
 
@@ -150,22 +164,35 @@ class URLRunner(EpisodeRunner):
         return self.batch
 
     def build_url_feature(self, observations):
-        assert self.env.n_agents == 2, "only support 2 agents now."
-        url_feature_list = []
-        for obs in observations:
-            url_feature_list.append(obs[0:6])        # [ego_positions, relative_positions_1, relative_positions_2]
-            url_feature_list.append(obs[12:16])      # [relative_opponent_positions_1, relative_opponent_positions_2]
-            url_feature_list.append(obs[20:22])      # [relative_ball_x, relative_ball_y]
+        if self.args.env == "gfootball":
+            assert self.env.n_agents == 2, "only support 2 agents now."
+            url_feature_list = []
+            for obs in observations:
+                url_feature_list.append(obs[0:6])        # [ego_positions, relative_positions_1, relative_positions_2]
+                url_feature_list.append(obs[12:16])      # [relative_opponent_positions_1, relative_opponent_positions_2]
+                url_feature_list.append(obs[20:22])      # [relative_ball_x, relative_ball_y]
 
-        obs = observations[0]
-        url_feature_list.append(obs[22:23])             # [ball_z]
+            obs = observations[0]
+            url_feature_list.append(obs[22:23])             # [ball_z]
 
-        url_feature_list.append(obs[6:12])           # [left_team_movements]
-        url_feature_list.append(obs[16:20])          # [right_team_movements]
-        url_feature_list.append(obs[23:])            # other infos
-        
-        url_feature = np.concatenate(url_feature_list, axis=0)
-        active_agents = tuple(url_feature[-3:])
+            url_feature_list.append(obs[6:12])           # [left_team_movements]
+            url_feature_list.append(obs[16:20])          # [right_team_movements]
+            url_feature_list.append(obs[23:])            # other infos
+            
+            url_feature = np.concatenate(url_feature_list, axis=0)
+            active_agents = tuple(url_feature[-3:])
+        elif self.args.env == "mpe":
+            url_feature_list = []
+            for obs in observations:
+                url_feature_list.append(obs[2:4])       # [ego_positions]
+                if self.args.url_velocity:
+                    url_feature_list.append(obs[0:2])   # [ego_velocity]
+
+            url_feature = np.concatenate(url_feature_list, axis=0)
+            active_agents = 1
+        else:
+            raise NotImplementedError
+
         return url_feature, active_agents
     
     def build_graph(self, observations):
@@ -214,17 +241,22 @@ class URLRunner(EpisodeRunner):
 
     def calc_pseudo_rewards(self, active_agents, control_traj, control_traj_reward=None):
         try:
-            target_data_batches = [list(self.caches_dict[active_agents][i].dump(self.args.max_control_len))[0] for i in range(self.num_modes)]
-            # pseudo_rewards = assign_reward(np.array(control_traj), target_data_batches, traj_reward=control_traj_reward, use_batch_apwd=self.args.batch_apwd)
-            pseudo_rewards = assign_reward(
-                control_traj,
-                target_data_batches,
-                self.args.ot_hyperparams,
+            target_data_batches = None
+            if self.args.url_algo != "diayn":
+                target_data_batches = [list(self.caches_dict[active_agents][i].dump(self.args.max_control_len))[0] for i in range(self.num_modes)]
+            pseudo_rewards = self.url_assigner_fn(
+                traj_data=control_traj,
+                target_data_batches=target_data_batches,
+                ot_hyperparams=self.args.ot_hyperparams,
+                mode_id=self.mode_id,
+                disc_trainer=self.disc_trainer,
+                num_modes=self.args.num_modes,
                 pseudo_reward_scale=self.args.pseudo_reward_scale,
                 reward_scale=self.args.reward_scale,
                 norm_reward=self.args.norm_reward,
                 traj_reward=control_traj_reward,
-                device="cuda"
+                device="cuda",
+                use_batch_apwd=self.args.batch_apwd
             )
         except:
             return None

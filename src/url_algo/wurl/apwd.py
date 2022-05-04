@@ -5,13 +5,15 @@ from functools import reduce
 
 from .wsre import wsre, wsre_batch
 
-def assign_reward(traj_data, target_data_batches, pseudo_reward_scale=10., reward_scale=0., traj_reward=None, use_batch_apwd=False):
+def assign_reward(traj_data, target_data_batches, pseudo_reward_scale=10., reward_scale=0., traj_reward=None, use_batch_apwd=False, **kwargs):
     """
     traj_data: [state]
     target_data_batches: [[target_state], ...] for different skills.
     reward_scale: the scale of the original reward
     traj_reward: [reward]
     """
+    traj_data = np.array(traj_data)
+    
     if use_batch_apwd:
         srs_list = wsre_batch(traj_data, target_data_batches) # skill*bs_D
         sum_srs = srs_list.sum(1) #skill
