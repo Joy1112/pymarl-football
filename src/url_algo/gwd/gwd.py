@@ -8,21 +8,22 @@ def node_cost_st(cost_s, cost_t, p_s=None, p_t=None, loss_type="L2"):
     """
     Args:
         cost_s (torch.Tensor): [K, T, N, N], where T is the length of the control trajectory & N is the number of the agents. Here data around dim-K is the same.
-        cost_t (torch.Tensor): [K, B, N, N], where K is the number of the skills & B is the length of the sampled batch.
+        cost_t (torch.Tensor): [K, B, M, M], where K is the number of the skills & B is the length of the sampled batch.
         p_s (torch.Tensor): [N, 1]
-        p_t (torch.Tensor): [N, 1]
+        p_t (torch.Tensor): [M, 1]
     
     Returns:
-        cost_st (torch.Tensor): [K, T, B, N, N]
+        cost_st (torch.Tensor): [K, T, B, N, M]
     """
-    dim_k, dim_b, dim_n = cost_t.shape[:3]
+    dim_n = cost_s.shape[-1]
+    dim_k, dim_b, dim_m = cost_t.shape[:3]
     
     with torch.no_grad():
         if loss_type == "L2":
-            f1_st = torch.matmul(cost_s ** 2, p_s).repeat(1, 1, 1, dim_n)                            # [K, T, N, 1] -> [K, T, N, N]
+            f1_st = torch.matmul(cost_s ** 2, p_s).repeat(1, 1, 1, dim_m)                            # [K, T, N, 1] -> [K, T, N, M]
 
-            f2_st = torch.matmul(cost_t ** 2, p_t).permute(0, 1, 3, 2).repeat(1, 1, dim_n, 1)        # [K, B, 1, N] -> [K, B, N, N]
-            cost_st = f1_st.unsqueeze(2) + f2_st.unsqueeze(1)                                       # [K, T, B, N, N]
+            f2_st = torch.matmul(cost_t ** 2, p_t).permute(0, 1, 3, 2).repeat(1, 1, dim_n, 1)        # [K, B, 1, M] -> [K, B, N, M]
+            cost_st = f1_st.unsqueeze(2) + f2_st.unsqueeze(1)                                       # [K, T, B, N, M]
         else:
             raise NotImplementedError
     
@@ -33,16 +34,16 @@ def node_cost(cost_s, cost_t, trans, p_s=None, p_t=None, loss_type="L2"):
     """
     Args:
         cost_s (torch.Tensor): [K, T, N, N], where T is the length of the control trajectory & N is the number of the agents. Here data around dim-K is the same.
-        cost_t (torch.Tensor): [K, B, N, N], where K is the number of the skills & B is the length of the sampled batch.
-        trans (torch.Tensor): [K, T, B, N, N].
+        cost_t (torch.Tensor): [K, B, M, M], where K is the number of the skills & B is the length of the sampled batch.
+        trans (torch.Tensor): [K, T, B, N, M].
         p_s (torch.Tensor): [N, 1]
-        p_t (torch.Tensor): [N, 1]
+        p_t (torch.Tensor): [M, 1]
     
     Returns:
-        cost (torch.Tensor): [K, T, B, N, N]
+        cost (torch.Tensor): [K, T, B, N, M]
     """
-    dim_t = cost_s.shape[1]
-    dim_k, dim_b, dim_n = cost_t.shape[:3]
+    dim_t, dim_n = cost_s.shape[1:3]
+    dim_k, dim_b, dim_m = cost_t.shape[:3]
 
     cost_st = node_cost_st(cost_s, cost_t, p_s, p_t, loss_type)
     if loss_type == "L2":
@@ -68,10 +69,10 @@ def sinkhorn_knopp_iteration(cost, trans0=None, p_s=None, p_t=None,
         min_{trans in Pi(p_s, p_t)} <cost, trans> + beta * KL(trans || trans0)
 
     Args:
-        cost (torch.Tensor): [K, T, B, N, N], representing batch of distance between nodes.
-        trans0 (torch.Tensor): [K, T, B, N, N], representing the optimal transport over the episode.
+        cost (torch.Tensor): [K, T, B, N, M], representing batch of distance between nodes.
+        trans0 (torch.Tensor): [K, T, B, N, M], representing the optimal transport over the episode.
         p_s (torch.Tensor): [N, 1]
-        p_t (torch.Tensor): [N, 1]
+        p_t (torch.Tensor): [M, 1]
 
         a: representing the dual variable
         beta: the weight of entropic regularizer
@@ -83,7 +84,7 @@ def sinkhorn_knopp_iteration(cost, trans0=None, p_s=None, p_t=None,
         a: updated dual variable
 
     """
-    dim_k, dim_t, dim_b, dim_n = cost.shape[:4]
+    dim_k, dim_t, dim_b, dim_n, dim_m = cost.shape
 
     if a is None:
         a = torch.ones((cost.shape[-2], 1), device=cost.device) / cost.shape[-2]
@@ -119,23 +120,23 @@ def gromov_wasserstein_discrepancy(cost_s, cost_t, ot_hyperparams, trans0=None, 
     """
     Args:
         cost_s (torch.Tensor): [K, T, N, N], where T is the length of the control trajectory & N is the number of the agents. Here data around dim-K is the same.
-        cost_t (torch.Tensor): [K, B, N, N], where K is the number of the skills & B is the length of the sampled batch.
+        cost_t (torch.Tensor): [K, B, M, M], where K is the number of the skills & B is the length of the sampled batch.
         ot_hyperparams (dict): hyper-parameters for the optimal transport algorithm.
-        trans0 (torch.Tensor): [K, T, B, N, N].
+        trans0 (torch.Tensor): [K, T, B, N, M].
         p_s (torch.Tensor): [N, 1]
-        p_t (torch.Tensor): [N, 1]
+        p_t (torch.Tensor): [M, 1]
 
     Returns:
-        trans (torch.Tensor): [K, T, B, N, N].
+        trans (torch.Tensor): [K, T, B, N, M].
         d_gw (torch.Tensor): [K, T, B]. The gromov-wasserstein discrepancy between the episode of graphs & batch of target graphs.
     """
-    dim_t = cost_s.shape[1]
-    dim_k, dim_b, dim_n = cost_t.shape[:3]
+    dim_t, dim_n = cost_s.shape[1:3]
+    dim_k, dim_b, dim_m = cost_t.shape[:3]
 
     if p_s is None:
         p_s = (1. / dim_n) * torch.ones(size=[dim_n, 1], device=cost_s.device)
     if p_t is None:
-        p_t = (1. / dim_n) * torch.ones(size=[dim_n, 1], device=cost_s.device)
+        p_t = (1. / dim_m) * torch.ones(size=[dim_m, 1], device=cost_s.device)
     
     if trans0 is None:
         trans0 = torch.matmul(p_s, p_t.T).unsqueeze(0).unsqueeze(0).unsqueeze(0).repeat(dim_k, dim_t, dim_b, 1, 1)
@@ -159,10 +160,7 @@ def gromov_wasserstein_discrepancy(cost_s, cost_t, ot_hyperparams, trans0=None, 
         iter_t += 1
     
     cost = node_cost(cost_s, cost_t, trans, p_s, p_t, ot_hyperparams["loss_type"])
-    d_gw = torch.sum(torch.matmul(cost, trans), dim=(-2, -1))
-
-    if torch.isnan(d_gw).any():
-        print(1)
+    d_gw = torch.sum(cost * trans, dim=(-2, -1))
 
     return trans, d_gw
 
@@ -191,7 +189,7 @@ def assign_reward(traj_data, target_data_batches, ot_hyperparams, pseudo_reward_
         return tensor
 
     cost_s = convert_to_tensor(traj_data, device)                   # [T, N, N]
-    cost_t = convert_to_tensor(target_data_batches, device)         # [K, B, N, N]
+    cost_t = convert_to_tensor(target_data_batches, device)         # [K, B, M, M]
     with torch.no_grad():
         _, d_gw = gromov_wasserstein_discrepancy(cost_s.unsqueeze(0).repeat(cost_t.shape[0], 1, 1, 1), cost_t, ot_hyperparams)
 
@@ -231,11 +229,12 @@ def assign_reward(traj_data, target_data_batches, ot_hyperparams, pseudo_reward_
 
 
 if __name__ == "__main__":
-    K, T, B, N = 3, 10, 15, 2
+    K, T, B, N, M = 3, 10, 15, 2, 4
     cost_s = torch.rand(size=[K, T, N, N], device="cuda").float()
-    cost_t = torch.rand(size=[K, B, N, N], device="cuda").float()
-    trans = torch.rand(size=[K, T, B, N, N], device="cuda").float()
+    cost_t = torch.rand(size=[K, B, M, M], device="cuda").float()
+    trans = torch.rand(size=[K, T, B, N, M], device="cuda").float()
     mu = (1. / N) * torch.ones(size=[N, 1], device="cuda").float()
+    nu = (1. / M) * torch.ones(size=[M, 1], device="cuda").float()
 
     cost_s = torch.as_tensor(cost_s, device="cuda")
     cost_t = torch.as_tensor(cost_t, device="cuda")
