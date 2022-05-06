@@ -7,6 +7,7 @@ import torch as th
 from types import SimpleNamespace as SN
 from utils.logging import Logger
 from utils.timehelper import time_left, time_str
+from utils.assert_path import assert_path
 from os.path import dirname, abspath
 from tqdm import tqdm
 from pyvirtualdisplay import Display
@@ -301,15 +302,20 @@ def _visualize(args, logger, runner, env_info, scheme, groups, preprocess):
         macs[mode_id].load_models(model_path, mode_id)
     runner.t_env = timestep_to_load
 
-
     logger.console_logger.info("Beginning visualization for {} modes.".format(args.num_modes))
 
     disp = Display(backend="xvfb").start()
     for mode_id in range(args.num_modes):
-        args.env_args["logdir"] = os.path.join(model_path, "replay", str(mode_id))
-        runner.create_env(args.env_args)
-        for i in tqdm(range(10)):
-            runner.run(test_mode=True, mode_id=mode_id)
+        if args.env == "gfootball":
+            args.env_args["logdir"] = os.path.join(model_path, "replay", str(mode_id))
+            runner.create_env(args.env_args)
+            for episode_i in tqdm(range(10)):
+                runner.run(test_mode=True, mode_id=mode_id)
+        elif args.env == "mpe":
+            replay_root_path = os.path.join(model_path, "replay", str(mode_id))
+            assert_path(replay_root_path)
+            for episode_i in tqdm(range(10)):
+                runner.run(test_mode=True, mode_id=mode_id, replay_save_path=replay_root_path, episode_i=episode_i)
 
     runner.close_env()
     disp.stop()

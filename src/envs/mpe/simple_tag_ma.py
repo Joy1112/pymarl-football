@@ -1,13 +1,10 @@
-# import os
-# import sys
-# import torch
-# sys.path.append(os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
-from .. import MultiAgentEnv
-# from multiagentenv import MultiAgentEnv
-from .scenarios import simple_tag_new
 import gym
+import os.path as osp
 import numpy as np
+import matplotlib.pyplot as plt
 
+from .. import MultiAgentEnv
+from .scenarios import simple_tag_new
 
 class SimpleTag(MultiAgentEnv):
     """Only the adversaries are controlled."""
@@ -18,6 +15,7 @@ class SimpleTag(MultiAgentEnv):
         time_step=0,
         map_name='simple_tag',
         seed=0,
+        logdir=None,
         **kwargs,
     ):
         self.n_agents = n_agents
@@ -25,6 +23,7 @@ class SimpleTag(MultiAgentEnv):
         self.time_step = time_step
         self.env_name = map_name
         self.seed_i = seed
+        self.logdir = logdir
         self.env = simple_tag_new.parallel_env(
             num_good=1,
             num_adversaries=self.n_agents - 1,
@@ -45,6 +44,8 @@ class SimpleTag(MultiAgentEnv):
         self.unit_dim = self.obs_dim = self.observation_space[0].shape[0]
         self.obs_dict = None
 
+        self.replay_fig = None
+
     def get_global_state(self):
         return self.env.state()
 
@@ -53,7 +54,6 @@ class SimpleTag(MultiAgentEnv):
         self.time_step += 1
         actions_list = actions.to('cpu').numpy().tolist()
         self.obs_dict, original_rewards, dones, infos = self.env.step({agent: actions_list[i] for i, agent in enumerate(self.agents)})
-        # rewards = list(original_rewards)
 
         # only done when reach the episode_limit
         if self.time_step >= self.episode_limit:
@@ -61,10 +61,6 @@ class SimpleTag(MultiAgentEnv):
         else:
             done = False
 
-        # if sum(rewards) <= 0:
-        #     return -int(done), done, infos
-
-        # return 100, done, infos
         return 0, done, {}
 
     def get_obs(self):
@@ -101,6 +97,7 @@ class SimpleTag(MultiAgentEnv):
     def reset(self):
         """Returns initial observations and states."""
         self.time_step = 0
+        self.episode_array = None
         self.obs_dict = self.env.reset()
 
         return self.get_obs(), self.get_global_state()
@@ -109,15 +106,30 @@ class SimpleTag(MultiAgentEnv):
         pass
 
     def close(self):
+        self.replay_fig.close()
         self.env.close()
 
     def seed(self, seed):
         self.seed_i = seed
         self.env.seed(self.seed_i)
 
-    def save_replay(self):
+    def save_replay(self, step, replay_save_path, episode_i):
         """Save a replay."""
-        pass
+        if self.replay_fig is None:
+            self.replay_fig = plt.figure(dpi=100)
+        
+        if self.episode_array is None:
+            self.episode_array = []
+
+        ax = self.replay_fig.add_axes([0.1, 0.1, 0.8, 0.8])
+        rgb_array = self.env.render(mode="rgb_array").transpose([1, 0, 2])
+        self.episode_array.append(rgb_array)
+        if step + 1 >= self.episode_limit:
+            np.save(osp.join(replay_save_path, f"episode_{episode_i}_replay.npy"), np.stack(self.episode_array, axis=0))
+
+        ax.imshow(rgb_array)
+        self.replay_fig.suptitle(f"step_{step}/{self.episode_limit}", fontsize=15, y=0.05)
+        self.replay_fig.savefig(osp.join(replay_save_path, f"episode_{episode_i}-step_{step}.jpg"))
 
     def get_stats(self):
         return  {}

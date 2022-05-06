@@ -130,7 +130,9 @@ if __name__ == '__main__':
     for _i, _v in enumerate(params):
         if "vis_process" in _v:
             config_dict["vis_process"] = True
-            break
+        if "url_algo" in _v:
+            config_dict["url_algo"] = "gwd"
+
     if "vis_process" not in config_dict.keys():
         config_dict["vis_process"] = False
 

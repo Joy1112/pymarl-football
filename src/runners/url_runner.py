@@ -43,8 +43,11 @@ class URLRunner(EpisodeRunner):
         self.mode_id = mode_id
         self.pseudo = False
 
-    def run(self, test_mode=False, mode_id=None):
+    def run(self, test_mode=False, mode_id=None, replay_save_path=None, episode_i=0):
         self.reset(mode_id)
+
+        if replay_save_path is not None:
+            self.env.save_replay(step=self.t, replay_save_path=replay_save_path, episode_i=episode_i)
 
         terminated = False
         episode_return = 0
@@ -127,6 +130,9 @@ class URLRunner(EpisodeRunner):
             observations = new_observations
             url_feature = new_url_feature
             active_agents = new_active_agents
+
+            if replay_save_path is not None:
+                self.env.save_replay(step=self.t, replay_save_path=replay_save_path, episode_i=episode_i)
 
         last_data = {
             "state": [self.env.get_state()],
