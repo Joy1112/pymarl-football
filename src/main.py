@@ -130,11 +130,18 @@ if __name__ == '__main__':
     for _i, _v in enumerate(params):
         if "vis_process" in _v:
             config_dict["vis_process"] = True
+        if "eval_process" in _v:
+            config_dict["eval_process"] = True
+            config_dict["runner"] = "url_eval"
         if "url_algo" in _v:
-            config_dict["url_algo"] = "gwd"
+            config_dict["url_algo"] = _v.split("=")[-1]
+        if "url_velocity" in _v:
+            config_dict["url_velocity"] = _v.split("=")[-1]
 
     if "vis_process" not in config_dict.keys():
         config_dict["vis_process"] = False
+    if "eval_process" not in config_dict.keys():
+        config_dict["eval_process"] = False
 
     try:
         ma_algo_name = parse_command(params, "mixer", config_dict['mixer'])

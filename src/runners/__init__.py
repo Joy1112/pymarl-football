@@ -11,3 +11,6 @@ REGISTRY["url"] = URLRunner
 
 from .url_load_runner import URLLoadRunner
 REGISTRY["url_load"] = URLLoadRunner
+
+from .url_evaluator import URLEvaluator
+REGISTRY["url_eval"] = URLEvaluator

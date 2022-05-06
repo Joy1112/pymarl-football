@@ -249,6 +249,7 @@ class URLRunner(EpisodeRunner):
         try:
             target_data_batches = None
             if self.args.url_algo != "diayn":
+                # TODO
                 target_data_batches = [list(self.caches_dict[active_agents][i].dump(self.args.max_control_len))[0] for i in range(self.num_modes)]
             pseudo_rewards = self.url_assigner_fn(
                 traj_data=control_traj,

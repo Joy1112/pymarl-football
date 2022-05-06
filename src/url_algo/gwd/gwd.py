@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import time
+from copy import deepcopy
 from scipy.optimize import linear_sum_assignment
 
 
@@ -158,20 +159,21 @@ def gromov_wasserstein_discrepancy(cost_s, cost_t, ot_hyperparams, trans0=None, 
         indicater_mat = relative_error > ot_hyperparams["iter_bound"]
         trans0 = trans
         iter_t += 1
-    
+        
     cost = node_cost(cost_s, cost_t, trans, p_s, p_t, ot_hyperparams["loss_type"])
     d_gw = torch.sum(cost * trans, dim=(-2, -1))
 
     return trans, d_gw
 
 
-def assign_reward(traj_data, target_data_batches, ot_hyperparams, pseudo_reward_scale=10.,
-                  reward_scale=0., norm_reward=False, traj_reward=None, device="cuda", **kwargs):
+def calc_graph_discrepancy(traj_data, target_data_batches, ot_hyperparams, device="cuda"):
     """
-    traj_data: [graph(torch.Tensor)] with graph.shape = [N, N]
-    target_data_batches: [[target_state], ...] for different skills.
-    reward_scale: the scale of the original reward
-    traj_reward: [reward]
+    Args:
+        traj_data: [graph(torch.Tensor)] with graph.shape [N, N]
+        target_data_batches: [[target_state], ...] for different skills.
+    Returns:
+        min_dis_skill: int. The skill with minimal discrepancy.
+        pseudo_rewards: np.array with shape [T]. The GWD for the trajectory.
     """
     def convert_to_tensor(list_data, device="cuda"):
         """
@@ -218,6 +220,24 @@ def assign_reward(traj_data, target_data_batches, ot_hyperparams, pseudo_reward_
     min_dis_skill = np.argmin(pseudo_episode_return)
     pseudo_rewards = pseudo_rewards_all[min_dis_skill]
 
+    return min_dis_skill, pseudo_rewards
+
+
+def assign_reward(traj_data, target_data_batches, ot_hyperparams, pseudo_reward_scale=10.,
+                  reward_scale=0., norm_reward=False, traj_reward=None, device="cuda", **kwargs):
+    """
+    traj_data: [graph(torch.Tensor)] with graph.shape = [N, N]
+    target_data_batches: [[target_state], ...] for different skills.
+    reward_scale: the scale of the original reward
+    traj_reward: [reward]
+    """
+    _, pseudo_rewards = calc_graph_discrepancy(
+        traj_data,
+        target_data_batches,
+        ot_hyperparams,
+        device=device
+    )
+    
     rewards = np.zeros_like(pseudo_rewards)
     norm_scale = len(target_data_batches[0]) / len(traj_data) if norm_reward else 1.
     for i in range(len(traj_data)):
@@ -229,9 +249,10 @@ def assign_reward(traj_data, target_data_batches, ot_hyperparams, pseudo_reward_
 
 
 if __name__ == "__main__":
-    K, T, B, N, M = 3, 10, 15, 2, 4
+    K, T, B, N, M = 3, 10, 15, 2, 2
     cost_s = torch.rand(size=[K, T, N, N], device="cuda").float()
     cost_t = torch.rand(size=[K, B, M, M], device="cuda").float()
+    cost_s[:, :T, :, :] = deepcopy(cost_s)
     trans = torch.rand(size=[K, T, B, N, M], device="cuda").float()
     mu = (1. / N) * torch.ones(size=[N, 1], device="cuda").float()
     nu = (1. / M) * torch.ones(size=[M, 1], device="cuda").float()
@@ -243,8 +264,8 @@ if __name__ == "__main__":
     ot_hyperparams = {
         "ot_method": "proximal",
         "loss_type": "L2",
-        "inner_iteration": 50,
-        "outer_iteration": 100,
+        "inner_iteration": 100,
+        "outer_iteration": 1000,
         "iter_bound": 1e-3,
         "sk_bound": 1e-3
     }

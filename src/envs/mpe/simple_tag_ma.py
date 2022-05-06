@@ -106,7 +106,7 @@ class SimpleTag(MultiAgentEnv):
         pass
 
     def close(self):
-        self.replay_fig.close()
+        plt.close()
         self.env.close()
 
     def seed(self, seed):

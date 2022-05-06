@@ -3,6 +3,7 @@ import os
 import pprint
 import time
 import threading
+import numpy as np
 import torch as th
 from types import SimpleNamespace as SN
 from utils.logging import Logger
@@ -21,6 +22,7 @@ from components.transforms import OneHot
 from smac.env import StarCraft2Env
 
 from url_algo.disc import DiscTrainer
+from url_algo.gwd import calc_graph_discrepancy
 
 
 def get_agent_own_state_size(env_args):
@@ -117,10 +119,13 @@ def run_sequential(args, logger):
     preprocess = {
         "actions": ("actions_onehot", [OneHot(out_dim=args.n_actions)])
     }
-    if not args.vis_process:
-        return _train(args, logger, runner, env_info, scheme, groups, preprocess)
-    else:
+    if args.vis_process:
         return _visualize(args, logger, runner, env_info, scheme, groups, preprocess)
+    elif args.eval_process:
+        return _url_evaluate(args, logger, runner, env_info, scheme, groups, preprocess)
+    else:
+        return _train(args, logger, runner, env_info, scheme, groups, preprocess)
+
 
 def _train(args, logger, runner, env_info, scheme, groups, preprocess):
     if args.url_algo == "diayn":
@@ -261,6 +266,97 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
     runner.close_env()
     logger.console_logger.info("Finished Training")
 
+
+def _url_evaluate(args, logger, runner, env_info, scheme, groups, preprocess):
+    assert args.env == "mpe", "Only support MPE now."
+    single_obs_shape = 2 if not args.url_velocity else 4
+    disc_trainer = DiscTrainer(single_obs_shape * args.n_agents, args)
+
+    buffer = ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
+                           preprocess=preprocess,
+                           device="cpu" if args.buffer_cpu_only else args.device)
+
+    macs = [mac_REGISTRY[args.mac](buffer.scheme, groups, args) for _ in range(args.num_modes)]
+    for mac in macs:
+        mac.cuda()
+
+    # Give runner the scheme
+    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, macs=macs)
+
+    assert args.checkpoint_path != "", "The `checkpoint_path` must be valid."
+
+    timesteps = []
+    timestep_to_load = 0
+
+    if not os.path.isdir(args.checkpoint_path):
+        logger.console_logger.info("Checkpoint directiory {} doesn't exist".format(args.checkpoint_path))
+        return
+
+    # Go through all files in args.checkpoint_path
+    for name in os.listdir(args.checkpoint_path):
+        full_name = os.path.join(args.checkpoint_path, name)
+        # Check if they are dirs the names of which are numbers
+        if os.path.isdir(full_name) and name.isdigit():
+            timesteps.append(int(name))
+
+    if args.load_step == 0:
+        # choose the max timestep
+        timestep_to_load = max(timesteps)
+    else:
+        # choose the timestep closest to load_step
+        timestep_to_load = min(timesteps, key=lambda x: abs(x - args.load_step))
+
+    model_path = os.path.join(args.checkpoint_path, str(timestep_to_load))
+
+    logger.console_logger.info("Loading model from {}".format(model_path))
+    for mode_id in range(args.num_modes):
+        macs[mode_id].load_models(model_path, mode_id)
+    runner.t_env = timestep_to_load
+
+    logger.console_logger.info("Beginning URL Evaluation for {} modes.".format(args.num_modes))
+
+    for mode_id in range(args.num_modes):
+        for _ in range(50):
+            with th.no_grad():
+                episode_batch = runner.run(test_mode=True, mode_id=mode_id)
+
+    runner.close_env()
+    
+    # train discriminator
+    for _ in range(1000):
+        label_batch, state_batch = runner.mixed_buffer.sample(batch_size=args.disc_batch)
+        disc_loss = disc_trainer.update_parameters((label_batch, state_batch))
+    label_batch, state_batch = runner.mixed_buffer.dump(len(runner.mixed_buffer))
+    scores = disc_trainer.score(state_batch, label_batch)
+    disc_score = np.exp(np.mean(scores))
+    del label_batch, state_batch
+
+    gwd_scores = []
+    for mode_id in range(args.num_modes):
+        print("eval mode: ", mode_id)
+        mode_gwd_scores = []
+        for active_agents in runner.indie_buffer_dict.keys():
+            sample_batch_size = len(runner.indie_buffer_dict[active_agents][mode_id]) // 100
+            
+            for batch_i in tqdm(range(150)):
+                data_batch = list(runner.indie_buffer_dict[active_agents][mode_id].sample(sample_batch_size))[0]
+
+                target_data_batches = []
+                for j in range(args.num_modes):
+                    if j == mode_id:
+                        continue
+
+                    target_data_batches.append(list(runner.indie_buffer_dict[active_agents][j].sample(sample_batch_size))[0])
+                
+                _, batch_gwd = calc_graph_discrepancy(data_batch, target_data_batches, args.ot_hyperparams)
+                mode_gwd_scores.append(np.mean(batch_gwd))
+        mode_gwd_score = np.mean(mode_gwd_scores)
+        gwd_scores.append(mode_gwd_score)
+    gwd_score = np.mean(gwd_scores)
+
+    logger.console_logger.info("Finished URL Evaluation.")
+
+
 def _visualize(args, logger, runner, env_info, scheme, groups, preprocess):
     buffer = ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
                            preprocess=preprocess,
@@ -320,6 +416,7 @@ def _visualize(args, logger, runner, env_info, scheme, groups, preprocess):
     runner.close_env()
     disp.stop()
     logger.console_logger.info("Finished Visualization.")
+
 
 def args_sanity_check(config, _log):
 
