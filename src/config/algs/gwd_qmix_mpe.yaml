@@ -72,6 +72,6 @@ return_priority: True
 
 
 save_model: True
-save_model_interval: 1000000
+save_model_interval: 200000
 
 name: "gwd_qmix_mpe"
