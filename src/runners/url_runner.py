@@ -56,17 +56,14 @@ class URLRunner(EpisodeRunner):
 
         control_traj = []
         control_traj_reward = []
+        state = self.env.get_state()
         observations = self.env.get_obs()
-
-        if self.args.url_algo == "gwd":
-            url_feature, active_agents = self.build_graph(observations)
-        else:
-            url_feature, active_agents = self.build_url_feature(observations)
+        url_feature, active_agents = self.build_graph_or_feature(observations, state)
 
         while not terminated:
 
             pre_transition_data = {
-                "state": [self.env.get_state()],
+                "state": [state],
                 "avail_actions": [self.env.get_avail_actions()],
                 "obs": [observations]
             }
@@ -92,11 +89,9 @@ class URLRunner(EpisodeRunner):
             control_traj_reward.append(reward)
 
             # assert the controlling agents are the same
+            new_state = self.env.get_state()
             new_observations = self.env.get_obs()
-            if self.args.url_algo == "gwd":
-                new_url_feature, new_active_agents = self.build_graph(new_observations)
-            else:
-                new_url_feature, new_active_agents = self.build_url_feature(new_observations)
+            new_url_feature, new_active_agents = self.build_graph_or_feature(new_observations, new_state)
                 
             if new_active_agents == active_agents and len(control_traj) < self.args.max_control_len:
                 controller_updated = False
@@ -127,6 +122,7 @@ class URLRunner(EpisodeRunner):
             self.batch.update(post_transition_data, ts=self.t)
 
             self.t += 1
+            state=new_state
             observations = new_observations
             url_feature = new_url_feature
             active_agents = new_active_agents
@@ -169,6 +165,18 @@ class URLRunner(EpisodeRunner):
             self.log_train_stats_t = self.t_env
         return self.batch
 
+    def build_graph_or_feature(self, observations, state):
+        if self.args.url_algo == "gwd":
+            if self.args.env == "gfootball" or self.args.env == "mpe":
+                url_feature, active_agents = self.build_graph_by_obs(observations)
+            elif self.args.env == "sc2":
+                url_feature, active_agents = self.build_graph_by_state(state)
+            else:
+                raise NotImplementedError
+        else:
+            url_feature, active_agents = self.build_url_feature(observations)
+        return url_feature, active_agents
+
     def build_url_feature(self, observations):
         if self.args.env == "gfootball":
             assert self.env.n_agents == 2, "only support 2 agents now."
@@ -201,14 +209,13 @@ class URLRunner(EpisodeRunner):
 
         return url_feature, active_agents
     
-    def build_graph(self, observations):
+    def build_graph_by_obs(self, observations):
         if self.args.env == "gfootball":
             # assert self.env.n_agents == 3, "only support 3 agents now."
             agents_pos_x, agents_pos_y = [], []
             for obs in observations:
                 agents_pos_x.append(obs[0])
                 agents_pos_y.append(obs[1])
-            
             obs = observations[0]
             if self.args.opponent_graph:
                 agents_pos_x.append(obs[12])
@@ -225,13 +232,6 @@ class URLRunner(EpisodeRunner):
                 agents_pos_x.append(obs[2])
                 agents_pos_y.append(obs[3])
             active_agents = 1
-        elif self.args.env == 'sc2':
-            if self.args.env_args['map_name'] == 'corridor':
-                agents_pos_x, agents_pos_y, health = [], [], []
-                
-                active_agents=1
-            else:
-                raise NotImplementedError
         else:
             raise NotImplementedError
 
@@ -244,6 +244,33 @@ class URLRunner(EpisodeRunner):
         url_graph = torch.sqrt(relative_pos_x ** 2 + relative_pos_y ** 2)
 
         return url_graph, active_agents
+    
+    def build_graph_by_state(self, state):
+        assert self.args.env == 'sc2'
+        active_agents=1
+        if self.args.env_args['map_name'] == 'corridor': #6 agents 5 dim:[health, cooldown, x, y, shield], 24 enemies 3 dim:[health, x, y]
+            agent_state = state[:30].reshape(6,5)
+            agent_feature = agent_state[:,(0,2,3)] #6*3
+            if self.args.opponent_graph:
+                enemy_state = state[30:102].reshape(24,3)
+                enemy_feature = enemy_state #24*3
+                agent_feature = np.vstack([agent_feature, enemy_feature])
+        elif self.args.env_args['map_name'] == '6h_vs_8z':#6 agents 4 dim:[health, cooldown, x, y], 8 enemies 4 dim:[health, x, y, shield]
+            agent_state = state[:24].reshape(6,4)
+            agent_feature = agent_state[:,(0,2,3)] #6*3
+            if self.args.opponent_graph:
+                enemy_state = state[24:56].reshape(8,4)
+                enemy_feature = enemy_state[:,(0,1,2)] #24*3
+                agent_feature = np.vstack([agent_feature, enemy_feature])            
+        else:
+            raise NotImplementedError
+        with torch.no_grad():
+            if self.args.del_death:
+                agent_feature=agent_feature[np.where(agent_feature[:,0]>0.001)]
+            agent_feature = torch.as_tensor(agent_feature) #bs*3
+            url_graph = torch.linalg.norm(agent_feature.unsqueeze(0)-agent_feature.unsqueeze(1), ord=2, dim=2)
+        return url_graph, active_agents
+
 
     def calc_pseudo_rewards(self, active_agents, control_traj, control_traj_reward=None):
         try:
