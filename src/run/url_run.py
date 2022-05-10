@@ -2,6 +2,7 @@ import datetime
 import os
 import pprint
 import time
+import json
 import threading
 import numpy as np
 import torch as th
@@ -12,6 +13,7 @@ from utils.assert_path import assert_path
 from os.path import dirname, abspath
 from tqdm import tqdm
 from pyvirtualdisplay import Display
+from sacred.serializer import flatten
 
 from learners import REGISTRY as le_REGISTRY
 from runners import REGISTRY as r_REGISTRY
@@ -249,6 +251,10 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
             save_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env))
             #"results/models/{}".format(unique_token)
             os.makedirs(save_path, exist_ok=True)
+            if not os.path.exists(os.path.join(args.local_results_path, "models", args.unique_token, "config.json")):
+                with open(os.path.join(args.local_results_path, "models", args.unique_token, "config.json"), "w") as f:
+                    json.dump(flatten(vars(args)), f, sort_keys=True, indent=2)
+                    f.flush()
             logger.console_logger.info("Saving models to {}".format(save_path))
 
             # learner should handle saving/loading -- delegate actor save/load to mac,
@@ -354,6 +360,8 @@ def _url_evaluate(args, logger, runner, env_info, scheme, groups, preprocess):
         gwd_scores.append(mode_gwd_score)
     gwd_score = np.mean(gwd_scores)
 
+
+    logger.console_logger.info("disc_score: {}, gwd_score: {}".format(disc_score, gwd_score))
     logger.console_logger.info("Finished URL Evaluation.")
 
 

@@ -109,6 +109,10 @@ if __name__ == '__main__':
             assert False, "default.yaml error: {}".format(exc)
 
     # Load algorithm and env base configs
+    env_config = _get_config(params, "--env-config", "envs")
+    if env_config is not None:
+        config_dict = recursive_dict_update(config_dict, env_config)
+
     exp_config = None
     for _i, _v in enumerate(params):
         if "exp" in _v:
@@ -119,29 +123,9 @@ if __name__ == '__main__':
             del params[_i]
             break
 
-    env_config = _get_config(params, "--env-config", "envs")
     alg_config = _get_config(params, "--config", "algs")
-    if env_config is not None:
-        config_dict = recursive_dict_update(config_dict, env_config)
     if alg_config is not None:
         config_dict = recursive_dict_update(config_dict, alg_config)
-
-    # TODO: remove in the future version
-    for _i, _v in enumerate(params):
-        if "vis_process" in _v:
-            config_dict["vis_process"] = True
-        if "eval_process" in _v:
-            config_dict["eval_process"] = True
-            config_dict["runner"] = "url_eval"
-        if "url_algo" in _v:
-            config_dict["url_algo"] = _v.split("=")[-1]
-        if "url_velocity" in _v:
-            config_dict["url_velocity"] = _v.split("=")[-1]
-
-    if "vis_process" not in config_dict.keys():
-        config_dict["vis_process"] = False
-    if "eval_process" not in config_dict.keys():
-        config_dict["eval_process"] = False
 
     try:
         ma_algo_name = parse_command(params, "mixer", config_dict['mixer'])
