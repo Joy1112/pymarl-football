@@ -7,6 +7,7 @@ max_control_len: 50
 start_steps: 5000
 batch_apwd: True
 vis_process: False
+eval_process: False
 norm_reward: False
 pseudo_reward_scale: 10.
 reward_scale: 0.

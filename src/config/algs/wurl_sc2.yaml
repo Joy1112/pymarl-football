@@ -7,6 +7,7 @@ max_control_len: 50
 start_steps: 5000
 batch_apwd: True
 vis_process: False
+eval_process: False
 opponent_graph: False
 ball_graph: False
 norm_reward: False
