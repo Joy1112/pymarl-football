@@ -200,9 +200,11 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
                 runner.model_choosed = True
                 print('Test rewards for all skills:',{i:runner.cur_reward[i] for i in range(runner.num_modes)})
                 cur_mode_id = np.argmax(runner.cur_reward)
+                macs[cur_mode_id].action_selector.step_in_second_phase()
                 for i in range(args.num_modes):
                     if not i == cur_mode_id:
-                        buffers[i]= None #release the memory
+                        buffers[i] = None #release the memory
+                        macs[i] = None
                 logger.console_logger.info(\
                     "--------------------------------\n\n\nUsing skill {}!\n\n\n--------------------------------".format(cur_mode_id))
             else:

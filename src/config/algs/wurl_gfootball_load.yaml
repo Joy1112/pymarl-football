@@ -23,10 +23,13 @@ judge_t: 1000000
 reward_alpha: 0.8 #calc reward for chooing models
 
 # use epsilon greedy action selector
-action_selector: "epsilon_greedy"
+action_selector: "delay_epsilon_greedy"
 epsilon_start: 0.2
 epsilon_finish: 0.05
 epsilon_anneal_time: 100000
+second_epsilon_start: 1.0
+second_epsilon_finish: 0.05
+second_epsilon_anneal_time: 100000
 
 run: "url_load_run"
 runner: "url_load"

@@ -189,3 +189,44 @@ class GaussianActionSelector():
 
 
 REGISTRY["gaussian"] = GaussianActionSelector
+
+class DelayedEpsilonGreedyActionSelector():
+    def __init__(self, args):
+        self.args = args
+
+        self.first_schedule = DecayThenFlatSchedule(args.epsilon_start, args.epsilon_finish, args.epsilon_anneal_time,
+                                              decay="linear")
+        self.second_schedule = DecayThenFlatSchedule(args.second_epsilon_start, args.second_epsilon_finish, args.second_epsilon_anneal_time,
+                                              decay="linear")
+        self.epsilon = self.first_schedule.eval(0)
+        self.second_phase = False
+    
+    def step_in_second_phase(self):
+        self.second_phase = True
+        self.delta_t = self.args.judge_t
+
+    def select_action(self, agent_inputs, avail_actions, t_env, test_mode=False):
+
+        # Assuming agent_inputs is a batch of Q-Values for each agent bav
+        if self.second_phase:
+            self.epsilon = self.second_schedule.eval(t_env - self.delta_t)
+        else:
+            self.epsilon = self.first_schedule.eval(t_env)
+
+        if test_mode:
+            # Greedy action selection only
+            self.epsilon  = getattr(self.args, "test_noise", 0.0)
+
+        # mask actions that are excluded from selection
+        masked_q_values = agent_inputs.clone()
+        masked_q_values[avail_actions == 0] = -float("inf")  # should never be selected!
+        
+        random_numbers = th.rand_like(agent_inputs[:, :, 0])
+        pick_random = (random_numbers < self.epsilon).long()
+        random_actions = Categorical(avail_actions.float()).sample().long()
+
+        picked_actions = pick_random * random_actions + (1 - pick_random) * masked_q_values.max(dim=2)[1]
+        return picked_actions
+
+
+REGISTRY["delay_epsilon_greedy"] = DelayedEpsilonGreedyActionSelector
