@@ -7,8 +7,8 @@ epsilon_start: 1.0
 epsilon_finish: 0.05
 epsilon_anneal_time: 100000
 
-runner: "parallel"
-batch_size_run: 8
+runner: "episode"
+batch_size_run: 1
 buffer_size: 5000
 batch_size: 128
 
@@ -34,4 +34,4 @@ weighted_head: True
 is_adv_attention: True
 is_stop_gradient: True
 
-name: "qplex_env=8_adam_td_lambda"
+name: "qplex"

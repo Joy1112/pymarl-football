@@ -29,6 +29,7 @@ env_args:
   map_name: "academy_3_vs_1_with_keeper"
   representation: "simple115v2"
   n_agents: 3
+  map_style: 3
   dump_freq: 0
   time_limit: 150
   write_video: True
