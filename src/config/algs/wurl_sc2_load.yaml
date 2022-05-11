@@ -19,7 +19,7 @@ ot_hyperparams:
   outer_iteration: 100
   iter_bound: 0.001
   sk_bound: 0.001
-judge_t: 100000
+judge_t: 5
 reward_alpha: 0.8 #calc reward for chooing models
 
 # use epsilon greedy action selector
