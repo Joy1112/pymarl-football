@@ -248,22 +248,16 @@ class URLRunner(EpisodeRunner):
     def build_graph_by_state(self, state):
         assert self.args.env == 'sc2'
         active_agents=1
-        if self.args.env_args['map_name'] == 'corridor': #6 agents 5 dim:[health, cooldown, x, y, shield], 24 enemies 3 dim:[health, x, y]
-            agent_state = state[:30].reshape(6,5)
-            agent_feature = agent_state[:,(0,2,3)] #6*3
-            if self.args.opponent_graph:
-                enemy_state = state[30:102].reshape(24,3)
-                enemy_feature = enemy_state #24*3
-                agent_feature = np.vstack([agent_feature, enemy_feature])
-        elif self.args.env_args['map_name'] == '6h_vs_8z':#6 agents 4 dim:[health, cooldown, x, y], 8 enemies 4 dim:[health, x, y, shield]
-            agent_state = state[:24].reshape(6,4)
-            agent_feature = agent_state[:,(0,2,3)] #6*3
-            if self.args.opponent_graph:
-                enemy_state = state[24:56].reshape(8,4)
-                enemy_feature = enemy_state[:,(0,1,2)] #24*3
-                agent_feature = np.vstack([agent_feature, enemy_feature])            
-        else:
-            raise NotImplementedError
+        nf_al = 4 + self.env.shield_bits_ally + self.env.unit_type_bits
+        nf_en = 3 + self.env.shield_bits_enemy + self.env.unit_type_bits
+        agent_num = self.env.n_agents
+        enemy_num = self.env.n_enemies
+        agent_state = state[:(agent_num*nf_al)].reshape(agent_num, nf_al)
+        agent_feature = agent_state[:,(0,2,3)] #6*3        
+        if self.args.opponent_graph:
+            enemy_state = state[(agent_num*nf_al):(agent_num*nf_al + enemy_num*nf_en)].reshape(enemy_num,nf_en)
+            enemy_feature = enemy_feature = enemy_state[:,(0,1,2)]
+            agent_feature = np.vstack([agent_feature, enemy_feature])
         with torch.no_grad():
             if self.args.del_death:
                 agent_feature=agent_feature[np.where(agent_feature[:,0]>0.001)]
