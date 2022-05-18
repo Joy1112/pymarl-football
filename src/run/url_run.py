@@ -355,7 +355,7 @@ def _url_evaluate(args, logger, runner, env_info, scheme, groups, preprocess):
                     target_data_batches.append(list(runner.indie_buffer_dict[active_agents][j].sample(sample_batch_size))[0])
                 
                 _, batch_gwd = calc_graph_discrepancy(data_batch, target_data_batches, args.ot_hyperparams)
-                mode_gwd_scores.append(np.mean(batch_gwd))
+                mode_gwd_scores.append(np.sum(batch_gwd))
         mode_gwd_score = np.mean(mode_gwd_scores)
         gwd_scores.append(mode_gwd_score)
     gwd_score = np.mean(gwd_scores)

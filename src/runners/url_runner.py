@@ -42,6 +42,7 @@ class URLRunner(EpisodeRunner):
         # self.mode_id = np.random.randint(0, high=self.num_modes)
         self.mode_id = mode_id
         self.pseudo = False
+        self.d_sp = 0.
 
     def run(self, test_mode=False, mode_id=None, replay_save_path=None, episode_i=0):
         self.reset(mode_id)
@@ -101,7 +102,7 @@ class URLRunner(EpisodeRunner):
             # when the control traj ended, calculate the pseudo rewards.
             if terminated or controller_updated:
                 if self.t_env >= self.args.start_steps:
-                    pseudo_rewards = self.calc_pseudo_rewards(active_agents, control_traj, control_traj_reward)
+                    pseudo_rewards, self.d_sp = self.calc_pseudo_rewards(active_agents, control_traj, control_traj_reward)
                     if pseudo_rewards is not None:
                         self.pseudo = True
                         pseudo_rewards_data = {
@@ -162,6 +163,8 @@ class URLRunner(EpisodeRunner):
             self._log(cur_returns, cur_stats, log_prefix)
             if hasattr(self.macs[self.mode_id].action_selector, "epsilon"):
                 self.logger.log_stat("epsilon", self.macs[self.mode_id].action_selector.epsilon, self.t_env)
+            if self.pseudo:
+                self.logger.log_stat("d_sp", self.d_sp, self.t_env)
             self.log_train_stats_t = self.t_env
         return self.batch
 
@@ -276,7 +279,7 @@ class URLRunner(EpisodeRunner):
                         continue
                     target_data_batches.append(list(self.caches_dict[active_agents][i].dump(self.args.max_control_len))[0])
                     
-            pseudo_rewards = self.url_assigner_fn(
+            pseudo_rewards, d_sp = self.url_assigner_fn(
                 traj_data=control_traj,
                 target_data_batches=target_data_batches,
                 ot_hyperparams=self.args.ot_hyperparams,
@@ -288,9 +291,11 @@ class URLRunner(EpisodeRunner):
                 norm_reward=self.args.norm_reward,
                 traj_reward=control_traj_reward,
                 device="cuda",
-                use_batch_apwd=self.args.batch_apwd
+                use_batch_apwd=self.args.batch_apwd,
+                sparse_return=self.args.sparse_return,
+                no_match=self.args.no_match
             )
         except:
             return None
 
-        return pseudo_rewards.reshape(-1, 1)
+        return pseudo_rewards.reshape(-1, 1), d_sp

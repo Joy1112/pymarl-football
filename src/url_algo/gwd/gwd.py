@@ -166,7 +166,7 @@ def gromov_wasserstein_discrepancy(cost_s, cost_t, ot_hyperparams, trans0=None, 
     return trans, d_gw
 
 
-def calc_graph_discrepancy(traj_data, target_data_batches, ot_hyperparams, device="cuda"):
+def calc_graph_discrepancy(traj_data, target_data_batches, ot_hyperparams, device="cuda", sparse_return=False, no_match=False):
     """
     Args:
         traj_data: [graph(torch.Tensor)] with graph.shape [N, N]
@@ -219,23 +219,40 @@ def calc_graph_discrepancy(traj_data, target_data_batches, ot_hyperparams, devic
 
     min_dis_skill = np.argmin(pseudo_episode_return)
     pseudo_rewards = pseudo_rewards_all[min_dis_skill]
+    dis_sp = np.sum(pseudo_rewards)
 
-    return min_dis_skill, pseudo_rewards
+    assert not (sparse_return and no_match), "only one option can set to be true."
+    if sparse_return:
+        sparse_pseudo_rewards = np.zeros_like(pseudo_rewards)
+        sparse_pseudo_rewards[-1] = dis_sp
+        pseudo_rewards = sparse_pseudo_rewards
+
+    if no_match:    
+        d_gw = d_gw.detach().cpu().numpy()
+        pseudo_rewards_all = np.diagonal(d_gw, axis1=1, axis2=2)
+        pseudo_episode_return = np.sum(pseudo_rewards_all, axis=-1)
+        min_dis_skill = np.argmin(pseudo_episode_return)
+        pseudo_rewards = pseudo_rewards_all[min_dis_skill]
+
+    return min_dis_skill, pseudo_rewards, dis_sp
 
 
 def assign_reward(traj_data, target_data_batches, ot_hyperparams, pseudo_reward_scale=10.,
-                  reward_scale=0., norm_reward=False, traj_reward=None, device="cuda", **kwargs):
+                  reward_scale=0., norm_reward=False, traj_reward=None, device="cuda",
+                  sparse_return=False, no_match=False, **kwargs):
     """
     traj_data: [graph(torch.Tensor)] with graph.shape = [N, N]
     target_data_batches: [[target_state], ...] for different skills.
     reward_scale: the scale of the original reward
     traj_reward: [reward]
     """
-    _, pseudo_rewards = calc_graph_discrepancy(
+    _, pseudo_rewards, dis_sp = calc_graph_discrepancy(
         traj_data,
         target_data_batches,
         ot_hyperparams,
-        device=device
+        device=device,
+        sparse_return=sparse_return,
+        no_match=no_match
     )
     
     rewards = np.zeros_like(pseudo_rewards)
@@ -245,7 +262,7 @@ def assign_reward(traj_data, target_data_batches, ot_hyperparams, pseudo_reward_
         if traj_reward is not None:
             rewards[i] += traj_reward[i] * reward_scale
 
-    return rewards
+    return rewards, dis_sp
 
 
 if __name__ == "__main__":
