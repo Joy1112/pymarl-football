@@ -1,41 +1,84 @@
-# Build Basic Docker Image
+# Synergy Pattern Diversifying Oriented Unsupervised Multi-agent Reinforcement Learning
+This code is for reproducing the experiments results in **SPD: Synergy Pattern Diversifying Oriented Unsupervised Multi-agent Reinforcement Learning**.
+We custom the code from the Open-source code [pymarl2](https://github.com/hijkzzz/pymarl2).
 
-```
-git clone git@github.com:Joy1112/vanilla-docker-images.git
-docker build -t ubuntu18.04-anaconda3/cuda-11.0 vanilla-docker-images/ubuntu-anaconda
-```
+## Requirements
+* [PyTorch](https://pytorch.org/) >= 1.7.1
+* python >= 3.8
+* Google Research Football
+* PettingZoo[mpe] == 1.17.0
+* System: Ubuntu >= 18.04 is recommanded
 
-# Build PYMARL2 Docker Image
-
-```
-git clone --recursive git@github.com:Joy1112/pymarl-football.git
-docker build -t pymarl/football pymarl-football
-```
-
-# Run Exp
-## Start a New Container
-If folder `pymarl_results` does not exist, create it first and the results of the exps will be in it.
-```
-mkdir <what_path>/pymarl_results
-# start a container
-docker run --name <what_name> -it --gpus "devices=0" -u $(id -u):$(id -g) -v <what_path>/pymarl_results:/home/docker/pymarl2/results pymarl/football
-```
-## Run Exp
-```
-# run in docker
-python src/main.py --config=wurl_gfootball --env-config=gfootball
-# then ctrl+P+Q to left the docker container.
-```
-## Check the outputs
-The outputs can be viewd by
-```
-# view the last 100 lines of the outputs
-docker logs <what_name> --tail=100
+## Installation
+[Anaconda3](https://www.anaconda.com/) is recommanded for managing the experiment environment.
+### Install Dependencies
+```bash
+# dependencies for gfootball
+apt-get update && apt-get install git cmake build-essential \
+    libgl1-mesa-dev libsdl2-dev \
+    libsdl2-image-dev libsdl2-ttf-dev libsdl2-gfx-dev libboost-all-dev \
+    libdirectfb-dev libst-dev mesa-utils xvfb x11vnc
 ```
 
-# Visualization
-`<path>` should be absolute path or relative path like `results/models/wurl_qmix_football__2022-04-21_19-38-03`.
-Remember to copy the config.json from the `sacred/` to `models/`
+### Install in the Anaconda Environment
+```bash
+# create conda environment
+conda create -n spd python=3.8
+conda activate spd
+
+# install dependencies for gfootball
+pip install --upgrade pip setuptools wheel
+pip install psutil
+
+# install gfootball
+pip install ./third_party/football
+
+# install mpe
+pip install pettingzoo[mpe]==1.17.0
+
+# install dependencies for pymarl2
+pip install sacred numpy scipy gym matplotlib seaborn pyyaml==5.3.1 pygame pytest probscale imageio snakeviz tensorboard-logger pyvirtualdisplay tqdm protobuf==3.20.1
+
+# install pytorch, please refer to the official site of PyTorch for a proper version.
+# here we use torch==1.7.1+cu110 as an example.
+pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html
 ```
-python src/main.py --exp-config=<path> with vis_process=True --env-config=gfootball_vis
+
+## Run Experiments
+We provide some neural networks parameters learned in our experiments in directory `results/models/`.
+You can train new models following these instructions as well.
+### MPE
+#### URL training 
+The config file is in the directory `src/config/algs/url_qmix_mpe.yaml` and you can check it for details about the hyper-parameters.
+```bash
+# SPD
+python src/main.py --config=url_qmix_mpe --env-config=mpe_simple_tag with t_max=4050000
+
+# DIAYN
+python src/main.py --config=url_qmix_mpe --env-config=mpe_simple_tag with url_algo=diayn t_max=4050000
+
+# WURL
+python src/main.py --config=url_qmix_mpe --env-config=mpe_simple_tag with url_algo=wurl t_max=4050000
+```
+The learned policies will be in the folder `results/models/`, and named by the timestamp such as `gwd_qmix_simple_tag_agents-4__2022-05-12_15-52-17`.
+
+
+#### URL evaluation
+To reproduce the results in Sec. 5.1 in SPD, you need to specify the model location
+```bash
+# here we give an example
+python src/main.py --config=url_eval_mpe --env-config=mpe_simple_tag --exp-config=results/models/gwd_qmix_simple_tag_agents-4__2022-05-12_15-52-17 with eval_process=True
+```
+
+### GRF
+#### URL training
+The config file is in the directory `src/config/algs/url_qmix_mpe.yaml` and you can check it for details about the hyper-parameters.
+```bash
+python src/main.py --config=url_gfootball --env-config=academy_3_vs_1_with_keeper with num_modes=20 ball_graph=True
+```
+
+#### Train on downstream tasks
+```bash
+# here we give an example. the details about env_args.map_style please refer to file `src/envs/gfootball/academy_3_vs_1_with_keeper.py`
+python src/main.py --config=url_gfootball_load --env-config=academy_3_vs_1_with_keeper with num_modes=20 env_args.map_style=0 t_max=4050000 test_nepisode=50 epsilon_start=0.2 checkpoint_path=results/models/gwd_qmix_academy_3_vs_1_with_keeper_agents-3__2022-05-07_05-34-39
 ```

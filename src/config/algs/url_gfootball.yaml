@@ -7,8 +7,9 @@ max_control_len: 50
 start_steps: 5000
 batch_apwd: True
 vis_process: False
+eval_process: False
 opponent_graph: False
-ball_graph: False
+ball_graph: True
 norm_reward: False
 pseudo_reward_scale: 10.
 reward_scale: 0.
@@ -19,29 +20,22 @@ ot_hyperparams:
   outer_iteration: 100
   iter_bound: 0.001
   sk_bound: 0.001
-judge_t: 1000000
-reward_alpha: 0.8 #calc reward for chooing models
+url_algo: "gwd"
 
 # use epsilon greedy action selector
-action_selector: "delay_epsilon_greedy"
-epsilon_start: 0.2
+action_selector: "epsilon_greedy"
+epsilon_start: 1.0
 epsilon_finish: 0.05
 epsilon_anneal_time: 100000
-second_epsilon_start: 1.0
-second_epsilon_finish: 0.05
-second_epsilon_anneal_time: 100000
 
-run: "url_load_run"
-runner: "url_load"
+run: "url_run"
+runner: "url"
 batch_size_run: 1
 buffer_size: 5000
 batch_size: 128
 optimizer: "adam"
-load_optim: True
-load_mixer: True
-best_mode: -1
 
-t_max: 4050000
+t_max: 10050000
 
 # update the target network every {} episodes
 target_update_interval: 200
@@ -78,4 +72,4 @@ return_priority: True
 
 save_model: True
 
-name: "wurl_qmix_football_load"
+name: "wurl_qmix_football"
