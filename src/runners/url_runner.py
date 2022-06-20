@@ -214,19 +214,21 @@ class URLRunner(EpisodeRunner):
     
     def build_graph_by_obs(self, observations):
         if self.args.env == "gfootball":
-            # assert self.env.n_agents == 3, "only support 3 agents now."
+            assert self.env.n_agents == 3, "only support academy_3_vs_1_with_keeper now."
             agents_pos_x, agents_pos_y = [], []
             for obs in observations:
                 agents_pos_x.append(obs[0])
                 agents_pos_y.append(obs[1])
+
             obs = observations[0]
+            # abs_pos = relative_pos + ego_pos
             if self.args.opponent_graph:
-                agents_pos_x.append(obs[12])
-                agents_pos_y.append(obs[13])
+                agents_pos_x.append(obs[16] + obs[0])
+                agents_pos_y.append(obs[17] + obs[1])
             
             if self.args.ball_graph:
-                agents_pos_x.append(obs[20])
-                agents_pos_y.append(obs[21])
+                agents_pos_x.append(obs[24] + obs[0])
+                agents_pos_y.append(obs[25] + obs[1])
 
             active_agents = tuple(obs[-3:])
         elif self.args.env == "mpe":

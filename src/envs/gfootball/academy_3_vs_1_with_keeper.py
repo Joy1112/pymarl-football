@@ -147,7 +147,7 @@ class Academy_3_vs_1_with_Keeper(MultiAgentEnv):
                 simple_obs.extend(do_flatten(obs['ball'][:2] - ego_position))
                 simple_obs.extend(do_flatten(obs['ball'][-1]))
             else:
-                simple_obs.extend([-1.] * 23)
+                simple_obs.extend([-1.] * 27)
 
         simple_obs.extend(do_flatten(obs['ball_direction']))
 
