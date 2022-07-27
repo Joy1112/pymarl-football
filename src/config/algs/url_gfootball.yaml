@@ -21,6 +21,8 @@ ot_hyperparams:
   iter_bound: 0.001
   sk_bound: 0.001
 url_algo: "gwd"
+sparse_return: False
+no_match: False
 
 # use epsilon greedy action selector
 action_selector: "epsilon_greedy"
@@ -72,4 +74,4 @@ return_priority: True
 
 save_model: True
 
-name: "wurl_qmix_football"
+name: "url_qmix_football"

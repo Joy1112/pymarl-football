@@ -102,8 +102,9 @@ class URLRunner(EpisodeRunner):
             # when the control traj ended, calculate the pseudo rewards.
             if terminated or controller_updated:
                 if self.t_env >= self.args.start_steps:
-                    pseudo_rewards, self.d_sp = self.calc_pseudo_rewards(active_agents, control_traj, control_traj_reward)
+                    pseudo_rewards, d_sp = self.calc_pseudo_rewards(active_agents, control_traj, control_traj_reward)
                     if pseudo_rewards is not None:
+                        self.d_sp = d_sp
                         self.pseudo = True
                         pseudo_rewards_data = {
                             "reward": pseudo_rewards,
@@ -298,6 +299,6 @@ class URLRunner(EpisodeRunner):
                 no_match=self.args.no_match
             )
         except:
-            return None
+            return None, None
 
         return pseudo_rewards.reshape(-1, 1), d_sp
