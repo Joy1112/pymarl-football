@@ -131,8 +131,16 @@ def run_sequential(args, logger):
 
 def _train(args, logger, runner, env_info, scheme, groups, preprocess):
     if args.url_algo == "diayn":
-        single_obs_shape = 2 if not args.url_velocity else 4
-        disc_trainer = DiscTrainer(single_obs_shape * args.n_agents, args)
+        if args.env == "mpe":
+            single_obs_shape = 2 if not args.url_velocity else 4    
+            disc_trainer = DiscTrainer(single_obs_shape * args.n_agents, args)
+        elif args.env == "gfootball":
+            obs_shape = 6
+            if args.opponent_graph:
+                obs_shape += 2
+            if args.ball_graph:
+                obs_shape += 2
+            disc_trainer = DiscTrainer(obs_shape, args)
     else:
         disc_trainer = None
 
@@ -253,6 +261,10 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
             os.makedirs(save_path, exist_ok=True)
             if not os.path.exists(os.path.join(args.local_results_path, "models", args.unique_token, "config.json")):
                 with open(os.path.join(args.local_results_path, "models", args.unique_token, "config.json"), "w") as f:
+                    json.dump(flatten(vars(args)), f, sort_keys=True, indent=2)
+                    f.flush()
+            if not os.path.exists(os.path.join(args.local_results_path, "tb_logs", args.unique_token, "config.json")):
+                with open(os.path.join(args.local_results_path, "tb_logs", args.unique_token, "config.json"), "w") as f:
                     json.dump(flatten(vars(args)), f, sort_keys=True, indent=2)
                     f.flush()
             logger.console_logger.info("Saving models to {}".format(save_path))

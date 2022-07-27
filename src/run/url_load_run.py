@@ -2,6 +2,7 @@ import datetime
 import os
 import pprint
 import time
+import json
 import threading
 import torch as th
 from types import SimpleNamespace as SN
@@ -10,6 +11,7 @@ from utils.timehelper import time_left, time_str
 from os.path import dirname, abspath
 from tqdm import tqdm
 from pyvirtualdisplay import Display
+from sacred.serializer import flatten
 import numpy as np
 
 from learners import REGISTRY as le_REGISTRY
@@ -256,6 +258,14 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
             save_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env))
             #"results/models/{}".format(unique_token)
             os.makedirs(save_path, exist_ok=True)
+            if not os.path.exists(os.path.join(args.local_results_path, "models", args.unique_token, "config.json")):
+                with open(os.path.join(args.local_results_path, "models", args.unique_token, "config.json"), "w") as f:
+                    json.dump(flatten(vars(args)), f, sort_keys=True, indent=2)
+                    f.flush()
+            if not os.path.exists(os.path.join(args.local_results_path, "tb_logs", args.unique_token, "config.json")):
+                with open(os.path.join(args.local_results_path, "tb_logs", args.unique_token, "config.json"), "w") as f:
+                    json.dump(flatten(vars(args)), f, sort_keys=True, indent=2)
+                    f.flush()
             logger.console_logger.info("Saving models to {}".format(save_path))
 
             # learner should handle saving/loading -- delegate actor save/load to mac,

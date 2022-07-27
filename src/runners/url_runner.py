@@ -183,20 +183,34 @@ class URLRunner(EpisodeRunner):
 
     def build_url_feature(self, observations):
         if self.args.env == "gfootball":
-            assert self.env.n_agents == 2, "only support 2 agents now."
+                       # assert self.env.n_agents == 2, "only support 2 agents now."
+            # url_feature_list = []
+            # for obs in observations:
+            #     url_feature_list.append(obs[0:6])        # [ego_positions, relative_positions_1, relative_positions_2]
+            #     url_feature_list.append(obs[12:16])      # [relative_opponent_positions_1, relative_opponent_positions_2]
+            #     url_feature_list.append(obs[20:22])      # [relative_ball_x, relative_ball_y]
+
+            # obs = observations[0]
+            # url_feature_list.append(obs[22:23])             # [ball_z]
+
+            # url_feature_list.append(obs[6:12])           # [left_team_movements]
+            # url_feature_list.append(obs[16:20])          # [right_team_movements]
+            # url_feature_list.append(obs[23:])            # other infos
+            
+            # url_feature = np.concatenate(url_feature_list, axis=0)
+            # active_agents = tuple(url_feature[-3:])
+            assert self.env.n_agents == 3, "only support academy_3_vs_1_with_keeper now."
             url_feature_list = []
             for obs in observations:
-                url_feature_list.append(obs[0:6])        # [ego_positions, relative_positions_1, relative_positions_2]
-                url_feature_list.append(obs[12:16])      # [relative_opponent_positions_1, relative_opponent_positions_2]
-                url_feature_list.append(obs[20:22])      # [relative_ball_x, relative_ball_y]
-
-            obs = observations[0]
-            url_feature_list.append(obs[22:23])             # [ball_z]
-
-            url_feature_list.append(obs[6:12])           # [left_team_movements]
-            url_feature_list.append(obs[16:20])          # [right_team_movements]
-            url_feature_list.append(obs[23:])            # other infos
+                url_feature_list.append(obs[0:2])           # [ego_positions]
             
+            obs = observations[0]
+            # abs_pos = relative_pos + ego_pos
+            if self.args.opponent_graph:
+                url_feature_list.append([obs[16] + obs[0], obs[17] + obs[1]])       # [opponent_position]
+            if self.args.ball_graph:
+                url_feature_list.append([obs[24] + obs[0], obs[25] + obs[1]])       # [ball_position], only x, y direction.
+
             url_feature = np.concatenate(url_feature_list, axis=0)
             active_agents = tuple(url_feature[-3:])
         elif self.args.env == "mpe":

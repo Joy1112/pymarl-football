@@ -23,6 +23,9 @@ ot_hyperparams:
 url_algo: "gwd"
 sparse_return: False
 no_match: False
+disc_hidden_dim: 256
+disc_lr: 0.0003
+disc_batch: 200
 
 # use epsilon greedy action selector
 action_selector: "epsilon_greedy"
