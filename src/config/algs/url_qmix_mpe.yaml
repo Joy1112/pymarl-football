@@ -9,7 +9,7 @@ batch_apwd: True
 vis_process: False
 eval_process: False
 norm_reward: False
-pseudo_reward_scale: 10.
+pseudo_reward_scale: 1.
 reward_scale: 0.
 ot_hyperparams:
   ot_method: "proximal"
@@ -39,7 +39,7 @@ buffer_size: 5000
 batch_size: 128
 optimizer: "adam"
 
-t_max: 10050000
+t_max: 4050000
 
 # update the target network every {} episodes
 target_update_interval: 200

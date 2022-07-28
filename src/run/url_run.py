@@ -132,8 +132,9 @@ def run_sequential(args, logger):
 def _train(args, logger, runner, env_info, scheme, groups, preprocess):
     if args.url_algo == "diayn":
         if args.env == "mpe":
-            single_obs_shape = 2 if not args.url_velocity else 4    
-            disc_trainer = DiscTrainer(single_obs_shape * args.n_agents, args)
+            single_obs_shape = 2 if not args.url_velocity else 4
+            obs_shape = single_obs_shape * (args.n_agents + 1) if args.env_args['url_downstream'] else (single_obs_shape * args.n_agents)
+            disc_trainer = DiscTrainer(obs_shape, args)
         elif args.env == "gfootball":
             obs_shape = 6
             if args.opponent_graph:
@@ -288,7 +289,8 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
 def _url_evaluate(args, logger, runner, env_info, scheme, groups, preprocess):
     assert args.env == "mpe", "Only support MPE now."
     single_obs_shape = 2 if not args.url_velocity else 4
-    disc_trainer = DiscTrainer(single_obs_shape * args.n_agents, args)
+    obs_shape = single_obs_shape * (args.n_agents + 1) if args.env_args['url_downstream'] else (single_obs_shape * args.n_agents)
+    disc_trainer = DiscTrainer(obs_shape, args)
 
     buffer = ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
                            preprocess=preprocess,

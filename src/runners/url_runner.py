@@ -22,6 +22,9 @@ class URLRunner(EpisodeRunner):
         else:
             self.caches_empty = [Cache(args.cache_size) for _ in range(self.num_modes)]
             self.caches_dict = {}
+        
+        self.url_train_returns = []
+        self.url_test_returns = []
 
         self.url_assigner_fn = url_assigner_REGISTRY[self.args.url_algo]
     
@@ -146,7 +149,8 @@ class URLRunner(EpisodeRunner):
         self.batch.update({"actions": cpu_actions}, ts=self.t)
 
         cur_stats = self.test_stats if test_mode else self.train_stats
-        cur_returns = self.test_returns if test_mode else self.train_returns
+        env_returns = self.test_returns if test_mode else self.train_returns
+        url_returns = self.url_test_returns if test_mode else self.url_train_returns
         log_prefix = "test_" if test_mode else ""
         cur_stats.update({k: cur_stats.get(k, 0) for k in set(cur_stats)})
         cur_stats["n_episodes"] = 1 + cur_stats.get("n_episodes", 0)
@@ -155,13 +159,15 @@ class URLRunner(EpisodeRunner):
         if not test_mode:
             self.t_env += self.t
 
-        # cur_returns.append(episode_return)
-        cur_returns.append(episode_pseudo_return)
+        env_returns.append(episode_return)
+        url_returns.append(episode_pseudo_return)
 
         if test_mode and (len(self.test_returns) == self.args.test_nepisode):
-            self._log(cur_returns, cur_stats, log_prefix)
+            self._log(env_returns, cur_stats, log_prefix + 'env_')
+            self._log(url_returns, cur_stats, log_prefix + 'url_')
         elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
-            self._log(cur_returns, cur_stats, log_prefix)
+            self._log(env_returns, cur_stats, log_prefix + 'env_')
+            self._log(url_returns, cur_stats, log_prefix + 'url_')
             if hasattr(self.macs[self.mode_id].action_selector, "epsilon"):
                 self.logger.log_stat("epsilon", self.macs[self.mode_id].action_selector.epsilon, self.t_env)
             if self.pseudo:
@@ -219,6 +225,10 @@ class URLRunner(EpisodeRunner):
                 url_feature_list.append(obs[2:4])       # [ego_positions]
                 if self.args.url_velocity:
                     url_feature_list.append(obs[0:2])   # [ego_velocity]
+            # observe the pos of the good_agent
+            if self.args.env_args['url_downstream']:
+                obs = self.env.get_obs_good_agent()
+                url_feature_list.append(obs[2:4])
 
             url_feature = np.concatenate(url_feature_list, axis=0)
             active_agents = 1
@@ -251,6 +261,13 @@ class URLRunner(EpisodeRunner):
             for obs in observations:
                 agents_pos_x.append(obs[2])
                 agents_pos_y.append(obs[3])
+
+            # observe the pos of the good_agent
+            if self.args.env_args['url_downstream']:
+                obs = self.env.get_obs_good_agent()
+                agents_pos_x.append(obs[2])
+                agents_pos_y.append(obs[3])
+
             active_agents = 1
         else:
             raise NotImplementedError
