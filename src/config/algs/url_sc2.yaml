@@ -8,7 +8,7 @@ start_steps: 5000
 batch_apwd: True
 vis_process: False
 eval_process: False
-opponent_graph: True
+opponent_graph: False
 ball_graph: False
 norm_reward: False
 pseudo_reward_scale: 10.
@@ -35,7 +35,7 @@ batch_size_run: 1
 buffer_size: 5000
 batch_size: 32
 
-t_max: 4050000
+t_max: 5050000
 
 # update the target network every {} episodes
 target_update_interval: 200
@@ -47,8 +47,10 @@ agent_output_type: q
 rnn_hidden_dim: 64
 
 learner: "q_learner"
+double_q: True
 mixer: "qmix"
 mixing_embed_dim: 32
+hypernet_layers: 2
 hypernet_embed: 64
 optimizer: 'RMSProp'
 
