@@ -21,6 +21,11 @@ ot_hyperparams:
   iter_bound: 0.001
   sk_bound: 0.001
 url_algo: "gwd"
+sparse_return: False
+no_match: False
+disc_hidden_dim: 256
+disc_lr: 0.0003
+disc_batch: 200
 del_death: False
 
 # use epsilon greedy action selector
@@ -33,7 +38,7 @@ run: "url_run"
 runner: "url"
 batch_size_run: 1
 buffer_size: 5000
-batch_size: 32
+batch_size: 128
 
 t_max: 5050000
 
@@ -42,18 +47,24 @@ target_update_interval: 200
 
 # use the Q_Learner to train
 mac: "url_mac"
-agent: "rnn" 
 agent_output_type: q
-rnn_hidden_dim: 64
 
-learner: "q_learner"
+learner: "dmaq_qatten_learner"
 double_q: True
-mixer: "qmix"
+mixer: "dmaq"
 mixing_embed_dim: 32
-hypernet_layers: 2
 hypernet_embed: 64
-optimizer: 'RMSProp'
+adv_hypernet_layers: 2
+adv_hypernet_embed: 64
+td_lambda: 0.6
+lr: 0.001
+
+num_kernel: 4
+is_minus_one: True
+weighted_head: True
+is_adv_attention: True
+is_stop_gradient: True
 
 save_model: True
 
-name: "wurl_qmix_ori_sc2"
+name: "url_qplex_sc2"
