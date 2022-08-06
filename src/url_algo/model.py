@@ -73,6 +73,51 @@ class CNN(nn.Module):
         return x
 
 
+class SuccessFeatureNet(nn.Module):
+    def __init__(self, num_inputs, num_outputs, hidden_dim, num_W):
+        super(SuccessFeatureNet, self).__init__()
+        self.num_W = num_W
+
+        self.l1 = nn.Linear(num_inputs, hidden_dim)
+        self.l2 = nn.Linear(hidden_dim, hidden_dim)
+        self.l3 = nn.Linear(hidden_dim, num_outputs)
+
+        self.apply(weights_init)
+
+    def forward(self, inputs, normalize=True):
+        x = F.relu(self.l1(inputs))
+        x = F.relu(self.l2(x))
+        x = self.l3(x)
+        
+        # reshape to [bs, num_actions, num_W]
+        bs = x.shape[0]
+        x.reshape(bs, -1, num_W)
+
+        return x
+
+
+class RepresentationNet(nn.Module):
+    def __init__(self, num_inputs, hidden_dim, num_outputs, normalize=True):
+        super(RepresentationNet, self).__init__()
+        self.normalize = normalize
+
+        self.l1 = nn.Linear(num_inputs, hidden_dim)
+        self.l2 = nn.Linear(hidden_dim, hidden_dim)
+        self.l3 = nn.Linear(hidden_dim, num_outputs)
+
+        self.apply(weights_init)
+
+    def forward(self, inputs, output_activation=None):
+        x = F.elu(self.l1(inputs))
+        x = F.elu(self.l2(x))
+        x = self.l3(x)
+        
+        if self.normalize:
+            x = F.normalize(x, p=2, dim=1)
+
+        return x
+
+
 class QNetwork(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim):
         super(QNetwork, self).__init__()

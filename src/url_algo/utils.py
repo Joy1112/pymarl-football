@@ -67,3 +67,8 @@ def convert_to_onehot(label, n):
     label_onehot = np.zeros((label.size, n))
     label_onehot[np.arange(label.size), label] = 1.
     return label_onehot
+
+def sample_spherical(npoints, ndim=3):
+    vec = np.random.randn(ndim, npoints)
+    vec /= np.linalg.norm(vec, axis=0)
+    return vec

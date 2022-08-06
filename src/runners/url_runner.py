@@ -27,6 +27,7 @@ class URLRunner(EpisodeRunner):
         self.url_test_returns = []
 
         self.url_assigner_fn = url_assigner_REGISTRY[self.args.url_algo]
+        self.runnner_algo = args.runner_algo
     
     def setup(self, scheme, groups, preprocess, macs, disc_trainer=None):
         self.new_batch = partial(EpisodeBatch, scheme, groups, self.batch_size, self.episode_limit + 1,
