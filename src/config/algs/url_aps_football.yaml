@@ -22,7 +22,8 @@ ot_hyperparams:
   sk_bound: 0.001
 url_algo: "gwd"
 
-dim_w: 10
+dim_w: 5
+aps_n_step: 10
 sf_hidden_dim: 256
 sf_lr: 0.0003
 

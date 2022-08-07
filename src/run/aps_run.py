@@ -113,6 +113,7 @@ def run_sequential(args, logger):
         "avail_actions": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.int},
         "probs": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.float},
         "ori_reward": {"vshape": (1,)},
+        "task_vector_w": {"vshape": (args.dim_w, )},
         "reward": {"vshape": (1,)},
         "terminated": {"vshape": (1,), "dtype": th.uint8},
     }
@@ -136,12 +137,12 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
         sf_dim += 2
     if args.ball_graph:
         sf_dim += 2
-    success_feature_net = SuccessFeatureNet(sf_dim + scheme["actions"]["vshape"][0] * args.n_agents + args.dim_w,
-                                            scheme["actions"]["vshape"][0] * args.dim_w,
+    success_feature_net = SuccessFeatureNet(sf_dim + args.n_actions * args.n_agents + args.dim_w,
+                                            args.dim_w,
                                             args.sf_hidden_dim,
                                             args.dim_w).to("cuda")
 
-    phi_net = RepresentationNet(sf_dim, args.sf_hidden_dim, 5, normalize=True)
+    phi_net = RepresentationNet(sf_dim, args.sf_hidden_dim, args.dim_w, normalize=True).to("cuda")
 
     buffers = ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
                             preprocess=preprocess,
@@ -150,7 +151,7 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
     macs = mac_REGISTRY[args.mac](buffers[0].scheme, groups, args)
 
     # Give runner the scheme
-    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, macs=macs, disc_trainer=disc_trainer)
+    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, macs=macs, phi_net=phi_net, success_feature_net=success_feature_net)
 
     # Learner
     learners = le_REGISTRY[args.learner](macs, buffers[0].scheme, logger, args)
