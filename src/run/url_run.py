@@ -354,6 +354,7 @@ def _url_evaluate(args, logger, runner, env_info, scheme, groups, preprocess):
         gwd_scores.append(mode_gwd_score)
     gwd_score = np.mean(gwd_scores)
 
+    logger.console_logger.info("disc_score: {}, gwd_score: {}".format(disc_score, gwd_score))
     logger.console_logger.info("Finished URL Evaluation.")
 
 
