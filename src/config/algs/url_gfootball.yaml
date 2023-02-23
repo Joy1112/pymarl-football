@@ -1,7 +1,7 @@
 #--- QMIX specific parameters ---
 
 # WRUL
-num_modes: 20
+num_modes: 10
 cache_size: 10000
 max_control_len: 50
 start_steps: 5000
@@ -21,7 +21,11 @@ ot_hyperparams:
   iter_bound: 0.001
   sk_bound: 0.001
 url_algo: "gwd"
-del_death: False
+sparse_return: False
+no_match: False
+disc_hidden_dim: 256
+disc_lr: 0.0003
+disc_batch: 200
 
 # use epsilon greedy action selector
 action_selector: "epsilon_greedy"
@@ -36,7 +40,7 @@ buffer_size: 5000
 batch_size: 128
 optimizer: "adam"
 
-t_max: 5050000
+t_max: 10050000
 
 # update the target network every {} episodes
 target_update_interval: 200
@@ -73,4 +77,4 @@ return_priority: True
 
 save_model: True
 
-name: "wurl_qmix_sc2"
+name: "url_qmix_football"

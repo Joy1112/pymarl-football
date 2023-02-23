@@ -16,6 +16,7 @@ class SimpleTag(MultiAgentEnv):
         map_name='simple_tag',
         seed=0,
         logdir=None,
+        url_downstream=True,
         **kwargs,
     ):
         self.n_agents = n_agents
@@ -24,10 +25,11 @@ class SimpleTag(MultiAgentEnv):
         self.env_name = map_name
         self.seed_i = seed
         self.logdir = logdir
+        self.url_downstream = url_downstream                # if url_downstream, the 'good_agent' is random walking
         self.env = simple_tag_new.parallel_env(
             num_good=1,
-            num_adversaries=self.n_agents - 1,
-            num_obstacles=0,
+            num_adversaries=3,
+            num_obstacles=1,
             max_cycles=self.episode_limit,
             continuous_actions=False
         )
@@ -35,7 +37,7 @@ class SimpleTag(MultiAgentEnv):
 
         # self.action_space = [self.env.action_space('adversary_' + str(i)) for i in range(self.n_agents)]
         # self.observation_space = [self.env.observation_space('adversary_' + str(i)) for i in range(self.n_agents)]
-        self.agents = self.env.possible_agents
+        self.agents = self.env.possible_agents[:self.n_agents]
         self.action_space = [self.env.action_space(agent) for agent in self.agents]
         self.observation_space = [self.env.observation_space(agent) for agent in self.agents]
 
@@ -53,7 +55,12 @@ class SimpleTag(MultiAgentEnv):
         """Returns reward, terminated, info."""
         self.time_step += 1
         actions_list = actions.to('cpu').numpy().tolist()
-        self.obs_dict, original_rewards, dones, infos = self.env.step({agent: actions_list[i] for i, agent in enumerate(self.agents)})
+        if self.url_downstream:
+            actions_dict = {agent: actions_list[i] for i, agent in enumerate(self.agents)}
+            actions_dict['agent_0'] = self.env.action_space('agent_0').sample()
+            self.obs_dict, original_rewards, dones, infos = self.env.step(actions_dict)
+        else:
+            self.obs_dict, original_rewards, dones, infos = self.env.step({agent: actions_list[i] for i, agent in enumerate(self.agents)})
 
         # only done when reach the episode_limit
         if self.time_step >= self.episode_limit:
@@ -61,15 +68,22 @@ class SimpleTag(MultiAgentEnv):
         else:
             done = False
 
-        return 0, done, {}
+        if original_rewards['adversary_0'] != original_rewards['adversary_1'] or original_rewards['adversary_0'] != original_rewards['adversary_2'] or original_rewards['adversary_1'] != original_rewards['adversary_2']:
+            print(1)
+
+        return original_rewards['adversary_0'], done, {}
 
     def get_obs(self):
         """Returns all agent observations in a list."""
-        return list(self.obs_dict.values())
+        return list(self.obs_dict.values())[:self.n_agents]
 
     def get_obs_agent(self, agent_id):
         """Returns observation for agent_id."""
         return self.obs_dict[self.agents[agent_id]]
+
+    def get_obs_good_agent(self):
+        """Returns observation for the good agent."""
+        return self.obs_dict['agent_0']
 
     def get_obs_size(self):
         """Returns the size of the observation."""

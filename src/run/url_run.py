@@ -2,6 +2,7 @@ import datetime
 import os
 import pprint
 import time
+import json
 import threading
 import numpy as np
 import torch as th
@@ -12,6 +13,7 @@ from utils.assert_path import assert_path
 from os.path import dirname, abspath
 from tqdm import tqdm
 from pyvirtualdisplay import Display
+from sacred.serializer import flatten
 
 from learners import REGISTRY as le_REGISTRY
 from runners import REGISTRY as r_REGISTRY
@@ -129,8 +131,17 @@ def run_sequential(args, logger):
 
 def _train(args, logger, runner, env_info, scheme, groups, preprocess):
     if args.url_algo == "diayn":
-        single_obs_shape = 2 if not args.url_velocity else 4
-        disc_trainer = DiscTrainer(single_obs_shape * args.n_agents, args)
+        if args.env == "mpe":
+            single_obs_shape = 2 if not args.url_velocity else 4
+            obs_shape = single_obs_shape * (args.n_agents + 1) if args.env_args['url_downstream'] else (single_obs_shape * args.n_agents)
+            disc_trainer = DiscTrainer(obs_shape, args)
+        elif args.env == "gfootball":
+            obs_shape = 6
+            if args.opponent_graph:
+                obs_shape += 2
+            if args.ball_graph:
+                obs_shape += 2
+            disc_trainer = DiscTrainer(obs_shape, args)
     else:
         disc_trainer = None
 
@@ -249,6 +260,14 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
             save_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env))
             #"results/models/{}".format(unique_token)
             os.makedirs(save_path, exist_ok=True)
+            if not os.path.exists(os.path.join(args.local_results_path, "models", args.unique_token, "config.json")):
+                with open(os.path.join(args.local_results_path, "models", args.unique_token, "config.json"), "w") as f:
+                    json.dump(flatten(vars(args)), f, sort_keys=True, indent=2)
+                    f.flush()
+            if not os.path.exists(os.path.join(args.local_results_path, "tb_logs", args.unique_token, "config.json")):
+                with open(os.path.join(args.local_results_path, "tb_logs", args.unique_token, "config.json"), "w") as f:
+                    json.dump(flatten(vars(args)), f, sort_keys=True, indent=2)
+                    f.flush()
             logger.console_logger.info("Saving models to {}".format(save_path))
 
             # learner should handle saving/loading -- delegate actor save/load to mac,
@@ -270,7 +289,8 @@ def _train(args, logger, runner, env_info, scheme, groups, preprocess):
 def _url_evaluate(args, logger, runner, env_info, scheme, groups, preprocess):
     assert args.env == "mpe", "Only support MPE now."
     single_obs_shape = 2 if not args.url_velocity else 4
-    disc_trainer = DiscTrainer(single_obs_shape * args.n_agents, args)
+    obs_shape = single_obs_shape * (args.n_agents + 1) if args.env_args['url_downstream'] else (single_obs_shape * args.n_agents)
+    disc_trainer = DiscTrainer(obs_shape, args)
 
     buffer = ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
                            preprocess=preprocess,
@@ -349,7 +369,7 @@ def _url_evaluate(args, logger, runner, env_info, scheme, groups, preprocess):
                     target_data_batches.append(list(runner.indie_buffer_dict[active_agents][j].sample(sample_batch_size))[0])
                 
                 _, batch_gwd = calc_graph_discrepancy(data_batch, target_data_batches, args.ot_hyperparams)
-                mode_gwd_scores.append(np.mean(batch_gwd))
+                mode_gwd_scores.append(np.sum(batch_gwd))
         mode_gwd_score = np.mean(mode_gwd_scores)
         gwd_scores.append(mode_gwd_score)
     gwd_score = np.mean(gwd_scores)

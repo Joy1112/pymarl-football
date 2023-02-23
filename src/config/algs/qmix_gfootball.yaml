@@ -46,4 +46,6 @@ per_alpha: 0.6
 per_beta: 0.4
 return_priority: True
 
-name: "qmix_env=16_adam_td_lambda"
+save_model: True
+save_model_interval: 500000
+name: "qmix_football"

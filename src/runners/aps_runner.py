@@ -9,19 +9,13 @@ from components.episode_buffer import EpisodeBatch
 from .episode_runner import EpisodeRunner
 from url_algo import REGISTRY as url_assigner_REGISTRY
 from url_algo.buffer import Cache
+from url_algo.utils import sample_spherical
 
 
 class URLRunner(EpisodeRunner):
 
     def __init__(self, args, logger):
         super(URLRunner, self).__init__(args, logger)
-        self.num_modes = args.num_modes
-
-        if self.args.url_algo == "diayn":
-            self.cache = Cache(args.cache_size)
-        else:
-            self.caches_empty = [Cache(args.cache_size) for _ in range(self.num_modes)]
-            self.caches_dict = {}
         
         self.url_train_returns = []
         self.url_test_returns = []
@@ -29,11 +23,12 @@ class URLRunner(EpisodeRunner):
         self.url_assigner_fn = url_assigner_REGISTRY[self.args.url_algo]
         self.runnner_algo = args.runner_algo
     
-    def setup(self, scheme, groups, preprocess, macs, disc_trainer=None):
+    def setup(self, scheme, groups, preprocess, mac, phi_net=None, success_feature_net=None):
         self.new_batch = partial(EpisodeBatch, scheme, groups, self.batch_size, self.episode_limit + 1,
                                  preprocess=preprocess, device=self.args.device)
-        self.macs = macs
-        self.disc_trainer = disc_trainer
+        self.mac = mac
+        self.phi_net = phi_net
+        self.success_feature_net = success_feature_net
     
     def create_env(self, env_args):
         del self.env
@@ -49,7 +44,7 @@ class URLRunner(EpisodeRunner):
         self.d_sp = 0.
 
     def run(self, test_mode=False, mode_id=None, replay_save_path=None, episode_i=0):
-        self.reset(mode_id)
+        self.reset()
 
         if replay_save_path is not None:
             self.env.save_replay(step=self.t, replay_save_path=replay_save_path, episode_i=episode_i)
@@ -57,27 +52,28 @@ class URLRunner(EpisodeRunner):
         terminated = False
         episode_return = 0
         episode_pseudo_return = 0
-        self.macs[self.mode_id].init_hidden(batch_size=self.batch_size)
+        # self.mac[self.mode_id].init_hidden(batch_size=self.batch_size)
 
-        control_traj = []
-        control_traj_reward = []
         state = self.env.get_state()
         observations = self.env.get_obs()
-        url_feature, active_agents = self.build_graph_or_feature(observations, state)
+        aps_feature = np.concatenate([obs for obs in observations], axis=0)
 
         while not terminated:
+            if self.t % args.aps_n_step == 0:
+                task_vector_w = sample_spherical(args.dim_w)
 
             pre_transition_data = {
                 "state": [state],
                 "avail_actions": [self.env.get_avail_actions()],
-                "obs": [observations]
+                "obs": [observations],
+                "task_vector_w": [task_vector_w]
             }
 
             self.batch.update(pre_transition_data, ts=self.t)
 
             # Pass the entire batch of experiences up till now to the agents
             # Receive the actions for each agent at this timestep in a batch of size 1
-            actions = self.macs[self.mode_id].select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
+            actions = self.mac[self.mode_id].select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
             # Fix memory leak
             cpu_actions = actions.to("cpu").numpy()
 
@@ -144,7 +140,7 @@ class URLRunner(EpisodeRunner):
         self.batch.update(last_data, ts=self.t)
 
         # Select actions in the last stored state
-        actions = self.macs[self.mode_id].select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
+        actions = self.mac[self.mode_id].select_actions(self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
         # Fix memory leak
         cpu_actions = actions.to("cpu").numpy()
         self.batch.update({"actions": cpu_actions}, ts=self.t)
@@ -169,139 +165,12 @@ class URLRunner(EpisodeRunner):
         elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
             self._log(env_returns, cur_stats, log_prefix + 'env_')
             self._log(url_returns, cur_stats, log_prefix + 'url_')
-            if hasattr(self.macs[self.mode_id].action_selector, "epsilon"):
-                self.logger.log_stat("epsilon", self.macs[self.mode_id].action_selector.epsilon, self.t_env)
+            if hasattr(self.mac[self.mode_id].action_selector, "epsilon"):
+                self.logger.log_stat("epsilon", self.mac[self.mode_id].action_selector.epsilon, self.t_env)
             if self.pseudo:
                 self.logger.log_stat("d_sp", self.d_sp, self.t_env)
             self.log_train_stats_t = self.t_env
         return self.batch
-
-    def build_graph_or_feature(self, observations, state):
-        if self.args.url_algo == "gwd":
-            if self.args.env == "gfootball" or self.args.env == "mpe":
-                url_feature, active_agents = self.build_graph_by_obs(observations)
-            elif self.args.env == "sc2":
-                url_feature, active_agents = self.build_graph_by_state(state)
-            else:
-                raise NotImplementedError
-        else:
-            url_feature, active_agents = self.build_url_feature(observations)
-        return url_feature, active_agents
-
-    def build_url_feature(self, observations):
-        if self.args.env == "gfootball":
-                       # assert self.env.n_agents == 2, "only support 2 agents now."
-            # url_feature_list = []
-            # for obs in observations:
-            #     url_feature_list.append(obs[0:6])        # [ego_positions, relative_positions_1, relative_positions_2]
-            #     url_feature_list.append(obs[12:16])      # [relative_opponent_positions_1, relative_opponent_positions_2]
-            #     url_feature_list.append(obs[20:22])      # [relative_ball_x, relative_ball_y]
-
-            # obs = observations[0]
-            # url_feature_list.append(obs[22:23])             # [ball_z]
-
-            # url_feature_list.append(obs[6:12])           # [left_team_movements]
-            # url_feature_list.append(obs[16:20])          # [right_team_movements]
-            # url_feature_list.append(obs[23:])            # other infos
-            
-            # url_feature = np.concatenate(url_feature_list, axis=0)
-            # active_agents = tuple(url_feature[-3:])
-            assert self.env.n_agents == 3, "only support academy_3_vs_1_with_keeper now."
-            url_feature_list = []
-            for obs in observations:
-                url_feature_list.append(obs[0:2])           # [ego_positions]
-            
-            obs = observations[0]
-            # abs_pos = relative_pos + ego_pos
-            if self.args.opponent_graph:
-                url_feature_list.append([obs[16] + obs[0], obs[17] + obs[1]])       # [opponent_position]
-            if self.args.ball_graph:
-                url_feature_list.append([obs[24] + obs[0], obs[25] + obs[1]])       # [ball_position], only x, y direction.
-
-            url_feature = np.concatenate(url_feature_list, axis=0)
-            active_agents = tuple(url_feature[-3:])
-        elif self.args.env == "mpe":
-            url_feature_list = []
-            for obs in observations:
-                url_feature_list.append(obs[2:4])       # [ego_positions]
-                if self.args.url_velocity:
-                    url_feature_list.append(obs[0:2])   # [ego_velocity]
-            # observe the pos of the good_agent
-            if self.args.env_args['url_downstream']:
-                obs = self.env.get_obs_good_agent()
-                url_feature_list.append(obs[2:4])
-
-            url_feature = np.concatenate(url_feature_list, axis=0)
-            active_agents = 1
-        else:
-            raise NotImplementedError
-
-        return url_feature, active_agents
-    
-    def build_graph_by_obs(self, observations):
-        if self.args.env == "gfootball":
-            assert self.env.n_agents == 3, "only support academy_3_vs_1_with_keeper now."
-            agents_pos_x, agents_pos_y = [], []
-            for obs in observations:
-                agents_pos_x.append(obs[0])
-                agents_pos_y.append(obs[1])
-
-            obs = observations[0]
-            # abs_pos = relative_pos + ego_pos
-            if self.args.opponent_graph:
-                agents_pos_x.append(obs[16] + obs[0])
-                agents_pos_y.append(obs[17] + obs[1])
-            
-            if self.args.ball_graph:
-                agents_pos_x.append(obs[24] + obs[0])
-                agents_pos_y.append(obs[25] + obs[1])
-
-            active_agents = tuple(obs[-3:])
-        elif self.args.env == "mpe":
-            agents_pos_x, agents_pos_y = [], []
-            for obs in observations:
-                agents_pos_x.append(obs[2])
-                agents_pos_y.append(obs[3])
-
-            # observe the pos of the good_agent
-            if self.args.env_args['url_downstream']:
-                obs = self.env.get_obs_good_agent()
-                agents_pos_x.append(obs[2])
-                agents_pos_y.append(obs[3])
-
-            active_agents = 1
-        else:
-            raise NotImplementedError
-
-        agents_pos_x = torch.as_tensor(agents_pos_x).reshape(-1, 1)
-        agents_pos_y = torch.as_tensor(agents_pos_y).reshape(-1, 1)
-
-        relative_pos_x = agents_pos_x - agents_pos_x.T
-        relative_pos_y = agents_pos_y - agents_pos_y.T
-
-        url_graph = torch.sqrt(relative_pos_x ** 2 + relative_pos_y ** 2)
-
-        return url_graph, active_agents
-    
-    def build_graph_by_state(self, state):
-        assert self.args.env == 'sc2'
-        active_agents=1
-        nf_al = 4 + self.env.shield_bits_ally + self.env.unit_type_bits
-        nf_en = 3 + self.env.shield_bits_enemy + self.env.unit_type_bits
-        agent_num = self.env.n_agents
-        enemy_num = self.env.n_enemies
-        agent_state = state[:(agent_num*nf_al)].reshape(agent_num, nf_al)
-        agent_feature = agent_state[:,(0,2,3)] #6*3        
-        if self.args.opponent_graph:
-            enemy_state = state[(agent_num*nf_al):(agent_num*nf_al + enemy_num*nf_en)].reshape(enemy_num,nf_en)
-            enemy_feature = enemy_feature = enemy_state[:,(0,1,2)]
-            agent_feature = np.vstack([agent_feature, enemy_feature])
-        with torch.no_grad():
-            if self.args.del_death:
-                agent_feature=agent_feature[np.where(agent_feature[:,0]>0.001)]
-            agent_feature = torch.as_tensor(agent_feature) #bs*3
-            url_graph = torch.linalg.norm(agent_feature.unsqueeze(0)-agent_feature.unsqueeze(1), ord=2, dim=2)
-        return url_graph, active_agents
 
 
     def calc_pseudo_rewards(self, active_agents, control_traj, control_traj_reward=None):
@@ -319,7 +188,7 @@ class URLRunner(EpisodeRunner):
                 target_data_batches=target_data_batches,
                 ot_hyperparams=self.args.ot_hyperparams,
                 mode_id=self.mode_id,
-                disc_trainer=self.disc_trainer,
+                success_feature_net=self.success_feature_net,
                 num_modes=self.args.num_modes,
                 pseudo_reward_scale=self.args.pseudo_reward_scale,
                 reward_scale=self.args.reward_scale,

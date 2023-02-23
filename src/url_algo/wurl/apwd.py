@@ -35,4 +35,4 @@ def assign_reward(traj_data, target_data_batches, pseudo_reward_scale=10., rewar
         if traj_reward is not None:
             rewards[i] += traj_reward[i] * reward_scale
 
-    return rewards
+    return rewards, 0.
