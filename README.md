@@ -20,7 +20,33 @@ If you find our project useful in your research, please consider citing us:
 ```
 
 ## Contents
-[toc]
+- [SPD: Synergy Pattern Diversifying Oriented Unsupervised Multi-agent Reinforcement Learning](#spd-synergy-pattern-diversifying-oriented-unsupervised-multi-agent-reinforcement-learning)
+  - [News](#news)
+  - [Citation](#citation)
+  - [Contents](#contents)
+  - [Requirements](#requirements)
+  - [Installation](#installation)
+    - [Depoly with Docker](#depoly-with-docker)
+      - [Pull the Docker Image Directly](#pull-the-docker-image-directly)
+      - [Build from Dockerfile](#build-from-dockerfile)
+    - [Deploy with the source code](#deploy-with-the-source-code)
+      - [Install Dependencies](#install-dependencies)
+      - [Install Necessary Packages in the Anaconda Environment](#install-necessary-packages-in-the-anaconda-environment)
+  - [Usage](#usage)
+    - [Create a Docker Container for SPD](#create-a-docker-container-for-spd)
+    - [Command Line Tool](#command-line-tool)
+      - [MPE](#mpe)
+        - [URL Training](#url-training)
+        - [URL Evaluation](#url-evaluation)
+      - [GRF](#grf)
+        - [URL Training](#url-training-1)
+        - [Train on Downstream Tasks](#train-on-downstream-tasks)
+      - [SMAC](#smac)
+  - [Contacts](#contacts)
+  - [Main Contributors](#main-contributors)
+  - [Acknowledgment](#acknowledgment)
+  - [License](#license)
+
 
 ## Requirements
 * [PyTorch](https://pytorch.org/) >= 1.7.1
@@ -210,7 +236,7 @@ python src/main.py --config=url_gfootball_load \
 The commands for runing the experiments on SMAC (in our Appendix. E) are similar to running SPD on GRF except the config files are `url_qmix_sc2.yaml` and `url_qmix_sc2_load.yaml`.
 
 ## Contacts
-* jiangyh19@mails.tsinghua.edu.cn
+* jiangyh19@mails.tsinghua.edu.cn / jiangyuh1112@gmail.com
 * sjz18@mails.tsinghua.edu.cn
 
 Any discussions or concerns are welcomed!
@@ -220,7 +246,7 @@ Any discussions or concerns are welcomed!
 * [@qyz55](https://github.com/qyz55)
 
 
-## Acknowledgments
+## Acknowledgment
 This work was supported by the National Key R&D Program of China under Grant 2018AAA0102801,National Natural Science Foundation of China under Grant 61620106005.
 
 Our code is based on the open-source code [PyMarl2](https://github.com/hijkzzz/pymarl2), and we really appreciate @hijkzzz's excellent repository.
