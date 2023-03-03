@@ -82,4 +82,4 @@ return_priority: False
 
 save_model: True
 
-name: "wurl_qmix_sc2_load"
+name: "url_qmix_sc2_load"

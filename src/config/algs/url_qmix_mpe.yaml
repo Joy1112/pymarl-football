@@ -1,8 +1,8 @@
 #--- QMIX specific parameters ---
 
 # WRUL
-num_modes: 10
-cache_size: 10000
+num_modes: 10             # how many different synergy patterns (joint-policies) to learn
+cache_size: 10000         # buffer size for each synergy pattern.
 max_control_len: 50
 start_steps: 5000
 batch_apwd: True
