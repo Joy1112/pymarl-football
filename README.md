@@ -1,5 +1,6 @@
 # SPD: Synergy Pattern Diversifying Oriented Unsupervised Multi-agent Reinforcement Learning
 This is the source code for reproducing the experimental results in ***SPD: Synergy Pattern Diversifying Oriented Unsupervised Multi-agent Reinforcement Learning*** (NeurIPS 2022).
+
 We custom the code from the Open-source code [PyMarl2](https://github.com/hijkzzz/pymarl2).
 
 If you want to know more information about this work, please refer to our [paper](https://openreview.net/forum?id=jJwy2kcBYv) and visit our [google site](https://sites.google.com/view/spd-umarl/).
@@ -49,12 +50,12 @@ If you find our project useful in your research, please consider citing us:
 
 
 ## Requirements
+* Python >= 3.8
 * [PyTorch](https://pytorch.org/) >= 1.7.1
-* python >= 3.8
-* Google Research Football
-* PettingZoo[mpe] == 1.17.0
-* StarCraftII & SMAC
-* System: Ubuntu >= 18.04 is recommanded
+* [Google Research Football](https://github.com/google-research/football)
+* [PettingZoo[mpe] == 1.17.0](https://pettingzoo.farama.org/environments/mpe/)
+* StarCraftII & [SMAC](https://github.com/oxwhirl/smac)
+* System: Linux (Ubuntu >= 18.04 is recommanded)
 
 ## Installation
 We provide installation instructions for both deploying with ***Docker*** and deploying with the ***source code***, while the former one is recommended.
@@ -97,6 +98,7 @@ Also, you could deploy with the source code.
 #### Install Dependencies
 ```bash
 # dependencies for gfootball
+# you may need to add `sudo` to install these dependencies
 apt-get update && apt-get install git cmake build-essential \
     libgl1-mesa-dev libsdl2-dev \
     libsdl2-image-dev libsdl2-ttf-dev libsdl2-gfx-dev libboost-all-dev \
@@ -139,9 +141,9 @@ pip install torch==1.7.1+cu110 -f https://download.pytorch.org/whl/torch_stable.
 ### Create a Docker Container for SPD
 To carry out the experiments, you should first attatch to an environment with all dependencies installed.
 Here we give some guides on how to create a docker container for SPD.
-Note if you ***deploy with the source code***, you can just skip this part.
+**Note if you *deploy with the source code*, you can just skip this part.**
 
-If you want to reproduce the SMAC experimental results, remember to mount the *StarCraftII* (which can be downloaded by `install_sc2.sh`) into the docker container.
+If you want to reproduce the SMAC experimental results, remember to mount the *StarCraftII* (which can be downloaded by the script `install_sc2.sh`) into the docker container.
 
 ```shell
 # create a `results` folder in your host first to save the experiments results
@@ -177,7 +179,7 @@ Therefore we are not sure about the performance of the `parallel_runner` and we 
 
 #### MPE
 ##### URL Training 
-In our work, all the URL training for Multi-agent is using QMIX as the baseline.
+In our work, all the URL training for Multi-agent tasks is using QMIX as the baseline.
 The config file is in the directory `src/config/algs/url_qmix_mpe.yaml` and you can check it for details about the hyper-parameters.
 ```bash
 # SPD
